@@ -6,7 +6,11 @@
    - 1 byte  for version
    ^-- just a counter of changes to interpretation
    - 1 byte  for flags
-   ^-- W = offset size (16, 32, or 64)
+   ^-- WW__ ___
+   ^-- W = 00 -> 2 bytes
+    --     01 -> 4 bytes
+    --     10 -> 8 bytes
+    -- Other bits are not used.
    - 2 bytes for (block size >> 8)
    - 8 bytes for offset of start of next available free block
    - 8 bytes for offset of free spot in free atom block
@@ -29,9 +33,10 @@
    ^-- 000_ ____ => Primitive (32 kinds)
    ^---  2 Booleans: T, F
    ^--- 12 Integers: [US](8,16,32,64,128,256)
-   ^--- 11 Floats: ([HSDQOex], d32, d64, d128, bfloat16)
    ^---  2 Times: 64b (s), 128b (s+ns)
-   ^---  5 Others: Null (empty list), Void, Undefined, Ref (W size), Extension
+   ^---  4 Others: Null (empty list), Void, Undefined, Ref (W size)
+   ^---  9 Floats: ([HSDQO], d32, d64, d128, bfloat16)
+   ^---  3 Unused
    ^-- 0010 ____ => BigNum (GnuMP), 1+3 VLQ length
    ^-- 0011 ____ => BigFloat (GnuMPFR), 1+3 VLQ length
    ^-- 01__ ____ => Vector, 1+5 VLQ length (of W size)
