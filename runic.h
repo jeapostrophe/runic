@@ -11,18 +11,18 @@
 #ifndef RUNIC_H
 #define RUNIC_H
 
+typedef struct runic
+{
+	int fd;
+	struct stat sb;
+	u_int8_t* addr;
+} runic_t;
+
 // TODO: Start by building API based on README.md
 // Go function by function. First three functions
 // listed.
 //
-// - Write a function, given the aforementioned
-// - signature or similar, that opens a .runic
-// - file with it's contents memory-mapped for
-// - use in the application.
-// --- Start with a function that just opens a file
-// --- using the mmap protocol.
-// --- Argument for options should be written? One 
-// --- each read_existing/write_existing/create_new?
+runic_t runic_open(const char* path, int mode);
 //
 // - Write a function, given the aforementioned
 // - signature or similar, that closes a file.
