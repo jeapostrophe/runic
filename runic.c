@@ -6,13 +6,13 @@
  * 			 format.
 ****/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include "runic.h"
+#include <stdio.h> // perror
+#include <stdlib.h> // exit
+#include <fcntl.h> // open flags
+#include <unistd.h> // close
+#include <sys/stat.h> // open, fstat
+#include <sys/mman.h> // mmap, munmap
+#include "runic.h" // runic
 
 // TODO: Start by building API based on README.md
 // Go function by function. First three functions
@@ -31,12 +31,13 @@ runic_t runic_open(const char* path, int mode)
 		ro.fd = open(path, O_RDONLY);
 		safe_fstat(&ro);
 		ro.addr = mmap(NULL, ro.sb.st_size, PROT_READ , MAP_PRIVATE, ro.fd, 0);
-		
+		mmap_failed(ro);
 		break;
 
 	case readWrite: // Read-write, Create new (default)
 	default:
-		ro.fd = open(path, O_RDWR | O_CREAT);
+		ro.fd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+			// args: path, Read-write and create if new; permissions flags(necesary for create): rwx,r-x,r-x
 		safe_fstat(&ro);
 		ro.addr = mmap(NULL, ro.sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, ro.fd, 0);
 		mmap_failed(ro);
