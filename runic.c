@@ -18,51 +18,57 @@
 // Go function by function. First three functions
 // listed.
 
-// TODO: Research file offset and address. These mmap arguments are not correct or final!
-// File offset should be 0 if I am starting at the beginning of the file on every open. Not sure if it should be different but 0 for now.
-// Addr still not 100% on.
 runic_t runic_open(const char* path, int mode)
 {
 	runic_t ro;
 
 	switch (mode)
 	{
-	case readOnly: // Read-only
-		ro.fd = open(path, O_RDONLY);
-		safe_fstat(&ro);
-		ro.addr = mmap(NULL, ro.sb.st_size, PROT_READ , MAP_PRIVATE, ro.fd, 0);
-		mmap_failed(ro);
+	case READONLY: // Read-only
+		___runic_open_on_args(&ro, path, O_RDONLY,
+			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE);
 		break;
-
-	case readWrite: // Read-write, Create new (default)
+	case READWRITE:
+		___runic_open_on_args(&ro, path, O_RDWR,
+			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
+		break;
+	case CREATEWRITE:
 	default:
-		ro.fd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-			// args: path, Read-write and create if new; permissions flags(necesary for create): rwx,r-x,r-x
-		safe_fstat(&ro);
-		ro.addr = mmap(NULL, ro.sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, ro.fd, 0);
-		mmap_failed(ro);
+		___runic_open_on_args(&ro, path, O_RDWR | O_CREAT,
+			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
 		break;
-	}	
-
+	}
 	return ro;
 }
-void mmap_failed(runic_t ro)
+
+void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
+	int permissions_flags, int prot_flags, int map_mode )
 {
-	if(ro.addr == MAP_FAILED)
+	if ((ro->fd = open(path, open_flags, permissions_flags)) == -1)
 	{
-		perror("Mmap failed.");
+		perror("File open failed.\n");
 		exit(1);
 	}
-}
-void safe_fstat(runic_t* ro)  // if there's a better naming convention i should use, just let me know
-{
 	if (fstat(ro->fd, &(ro->sb)) == -1)
 	{
 		perror("File access corrupted, couldn't get filesize.\n");
 		exit(1);
 	}
+	if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : _SC_PAGESIZE),
+		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED)
+	{
+		perror("Mmap failed.\n");
+		exit(1);
+	}
+	if (open_flags & O_CREAT)
+	{
+		/* read the magic number, ensure file is correct */
+	}
+	else
+	{
+		/* create the magic number */
+	}
 }
-
 
 void runic_close(runic_t ro)
 {
@@ -73,11 +79,9 @@ void runic_close(runic_t ro)
 // alloc'ing a node is really a matter of alloc'ing file space for the node if none exists
 // remember these are mmap'd files
 // should it return an obj_t, or just alloc the space?
-runic_obj_t runic_alloc_node(runic_t ro)
+runic_obj_t* runic_alloc_node(runic_t ro)
 {
-	runic_obj_t rn;
-
-	rn.temp = 0; // change this later
+	runic_obj_t* rn = 0;
 
 	return rn;
 }

@@ -4,6 +4,12 @@ RUNIC_OBJECTS = runic.o
 
 ALL: runic.o
 
+#compiled: main.o
+#	$(CC) $(CFLAGS) -o compiled main.o
+
+#main.o: main.c
+#	$(CC) $(CFLAGS) -c main.c -o main.o
+
 runic.o: runic.c
 	$(CC) $(CFLAGS) -c runic.c -o runic.o
 

@@ -18,15 +18,11 @@ typedef struct runic
 	uint8_t* addr;
 } runic_t;
 
-// incomplete. all c structs require one named member.
-typedef struct runic_obj
-{
-	int temp;
-} runic_obj_t;
+typedef uint8_t /*pointer to a node, not a struct*/ runic_obj_t;
 
-enum runic_file_modes // enums or #define?? it looks like #define is used for other flags
+enum runic_file_modes
 {
-	readOnly, readWrite
+	READONLY, READWRITE, CREATEWRITE
 };
 
 // TODO: Start by building API based on README.md
@@ -34,15 +30,14 @@ enum runic_file_modes // enums or #define?? it looks like #define is used for ot
 // listed.
 
 runic_t runic_open(const char* path, int mode);
-void mmap_failed(runic_t ro);
-void safe_fstat(runic_t* runic_file);
+void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags, int permissions_flags, int prot_flags, int map_mode );
 
 void runic_close(runic_t runic_file);
 
 // alloc'ing a node is a matter of alloc'ing file space for the node if none exists
 // remember these are mmap'd files
 // should it return an obj_t, or just alloc the space?
-runic_obj_t runic_alloc_node(runic_t ro);
+runic_obj_t* runic_alloc_node(runic_t ro);
 
 // - Write a function, given the aforementioned
 // - signature or similar, that inserts a root
