@@ -1,10 +1,14 @@
 #lang racket/base
 (require (for-syntax racket/base
                      syntax/parse)
+         syntax/parse/define
          racket/lazy-require
+         racket/list
          racket/undefined
-         racket/match)
-(lazy-require [gregor (datetime? posix->datetime ->posix ->nanoseconds +nanoseconds)])
+         racket/match
+         racket/contract
+         struct-define
+         (prefix-in gr: gregor))
 (module+ test
   (require chk))
 
@@ -23,7 +27,7 @@
 
 (define shebang-len 128)
 (define lang-len 12)
-(define filemeta-len 72)
+(define filemeta-len 82)
 
 (define-syntax define-offset-sequence
   (syntax-parser
@@ -36,10 +40,8 @@
   [lang-off lang-len]
   [version-off 8bit]
   [flags-off 8bit]
-  [block-sz-off 16bit]
-  [free-ptr-off 64bit]
-  [free-abk-off 64bit]
-  [free-cbk-off 64bit]
+  [free-bpt-off 64bit]
+  [free-opt-off 64bit]
   [root-obj-off 64bit]
   [glob-obj-off 64bit]
   [filemeta-off filemeta-len]
@@ -71,141 +73,228 @@
 (define flag-offset-64bit #b10000000)
 (define flags-default-bs (bytes flag-offset-16bit))
 
-(define block-sz-default 256)
+(define block-size (expt 2 12))
 
 (define filemeta-default-bs (make-bytes filemeta-len 0))
 
-(define block-header-sz-default (* 2 16bit))
+(define block-header-size (* 2 64bit))
 
-;; Runic values
+;; Value Helpers
 
-(struct Rraw (t bs))
-(define Rraw-tag->len
-  (hasheq 'U128 128bit 'S128 128bit 'U256 256bit 'S256 256bit 'F16 16bit 'F128 128bit 'F256 256bit
-          'FD32 32bit 'FD64 64bit 'FD128 128bit 'FB16 16bit 'BIGNUM #t 'BIGFLO #t))
+(define time-s? gr:datetime?)
+(define (time-s-in bs) (gr:posix->datetime (integer-bytes->integer bs SIGNED LITTLE-ENDIAN)))
+(define (time-s-out x) (integer->integer-bytes (floor (gr:->posix x)) 64bit SIGNED LITTLE-ENDIAN))
 
-(struct Rref (o))
-(struct Rvec (v))
-(struct Rcons (a d))
+(define time-s+ns? gr:datetime?)
+(define (time-s+ns-in bs)
+  (define dt (gr:posix->datetime (integer-bytes->integer bs SIGNED LITTLE-ENDIAN 0 3)))
+  (gr:+nanoseconds dt (integer-bytes->integer bs SIGNED LITTLE-ENDIAN 4 7)))
+(define (time-s+ns-out x)
+  (bytes-append (time-s-out x)
+                (integer->integer-bytes (gr:->nanoseconds x) 64bit SIGNED LITTLE-ENDIAN)))
+
+;; Type definers
+(define-simple-macro (type-constant (quote t:id) bits:bytes val:expr)
+  (begin
+    (define (? x) (eq? val x))
+    (define (in bs) val)
+    (define (out x) #"")
+    (type-atom 't bits 0 ? in out)))
+(define-simple-macro (type-int (quote t:id) bits:bytes signed?:boolean len:id)
+  (begin
+    (define (? x) (and (integer? x) (<= (integer-length x) len)))
+    (define (in bs) (integer-bytes->integer bs signed? LITTLE-ENDIAN))
+    (define (out x) (integer->integer-bytes x len signed? LITTLE-ENDIAN))
+    (type-atom 't bits len ? in out)))
+(define-simple-macro (type-flo (quote t:id) bits:bytes len:id)
+  (begin
+    (define ?
+      (match len
+        [4 single-flonum?]
+        [8 flonum?]
+        [_ (error 'type-flo "Doesn't support len ~e" len)]))
+    (define (in bs) (floating-point-bytes->real bs LITTLE-ENDIAN))
+    (define (out x) (real->floating-point-bytes x len LITTLE-ENDIAN))
+    (type-atom 't bits len ? in out)))
+
+(define ATOM-?s '())
+(define ATOM->IN (make-hasheq))
+(define ATOM->OUT (make-hasheq))
+(define-simple-macro (type-atom (quote t:id) bits:bytes len:expr ?:id in:id out:id)
+  (begin
+    (set! ATOM-?s (cons ? ATOM-?s))
+    (hash-set! ATOM->IN 't in)
+    (type-tag! 't bits len)))
+
+(define RAW-TYPES '())
+(define-simple-macro (type-raw (quote t:id) bits:bytes len:expr)
+  (begin
+    (set! RAW-TYPES (cons 't RAW-TYPES))
+    (type-tag! 't bits len)))
+
+(define-simple-macro (type (quote t:id) bits:bytes len:expr ?:id)
+  (begin
+    (define (? rv) (and (Rval? rv) (eq? (Rval-type rv) 't)))
+    (type-tag! 't bits len)
+    'XXX))
+
+(struct tag-info (mask tag type))
+(define TYPE-TAGS '())
+(define (tag-insert ti l)
+  (cond
+    [(empty? l) (list ti)]
+    [(> (tag-info-mask ti)
+        (tag-info-mask (first l)))
+     (cons ti l)]
+    [else
+     (cons (first l) (tag-insert ti (rest l)))]))
+(define (type-tag! ty bits len)
+  (define-values (m t)
+    (for/fold ([m 0] [t 0] [i (expt 2 7)] #:result (values m t)) ([b (in-bytes bits)])
+      (match (integer->char b)
+        [#\0     (values (+ m i)    t    (/ i 2))]
+        [#\1     (values (+ m i) (+ t i) (/ i 2))]
+        [#\_     (values    m       t    (/ i 2))]
+        [#\space (values    m       t       i   )])))
+  (define ti (tag-info m t ty))
+  ;; XXX len
+  ;; XXX count _ for VLQ len
+  (set! TYPE-TAGS (tag-insert ti TYPE-TAGS)))
 
 ;; Types
 
-(struct -type (mask tg ? len in out))
+#;(define (type-raw bit-string rlen t)
+    (define (? x) (and (Rraw? x) (eq? (Rraw-t x) t)))
+    (define (in f o len)
+      (if (integer? rlen)
+        (Rraw f o t)
+        (Rrw* f o t len)))
+    (type #:? ? #:bit bit-string #:length rlen #:in in))
 
-(define TYPES
-  (let ()
-    (define (Rref-in bs) (Rref (-obj (current-runic-file) (integer-bytes->integer bs UNSIGNED LITTLE-ENDIAN))))
-    (define (Rref-out x)
-      (match-define (Rref (-obj f o)) x)
-      (->unsigned-bs (file-offset-len f) o))
+(type-constant 'FALSE #"0000 0000" #f)
+(type-constant  'TRUE #"0000 0001" #t)
+(type-int         'U8 #"0000 0010" #f   8bit)
+(type-int         'S8 #"0000 0011" #t   8bit)
+(type-int        'U16 #"0000 0100" #f  16bit)
+(type-int        'S16 #"0000 0101" #t  16bit)
+(type-int        'U32 #"0000 0110" #f  32bit)
+(type-int        'S32 #"0000 0111" #t  32bit)
+(type-int        'U64 #"0000 1000" #f  64bit)
+(type-int        'S64 #"0000 1001" #t  64bit)
+(type-raw       'U128 #"0000 1010"    128bit)
+(type-raw       'S128 #"0000 1011"    128bit)
+(type-raw       'U256 #"0000 1100"    256bit)
+(type-raw       'S256 #"0000 1101"    256bit)
+(type-atom    'TIME64 #"0000 1110" 64bit time-s? time-s-in time-s-out)
+(type-atom   'TIME128 #"0000 1111" 128bit time-s+ns? time-s+ns-in time-s+ns-out)
+(type-constant  'NULL #"0001 0000" '())
+(type-constant  'VOID #"0001 0001" (void))
+(type-constant 'UNDEF #"0001 0010" undefined)
+(type            'BOX #"0001 0011" 'W Rbox?)
+(type-raw        'F16 #"0001 0100"  16bit)
+(type-flo        'F32 #"0001 0101"  32bit)
+(type-flo        'F64 #"0001 0110"  64bit)
+(type-raw       'F128 #"0001 0111" 128bit)
+(type-raw       'F256 #"0001 1000" 256bit)
+(type-raw       'FD32 #"0001 1001"  32bit)
+(type-raw       'FD64 #"0001 1010"  64bit)
+(type-raw      'FD128 #"0001 1011" 128bit)
+(type-raw       'FB16 #"0001 1100"  16bit)
+(type           'CONS #"0001 1101" '2W Rcons?)
+;; Unallocated        #"0001 1110"
+;; Unallocated        #"0001 1111"
+(type-raw     'BIGNUM #"0010 ____" 'VLQ)
+(type-raw     'BIGFLO #"0011 ____" 'VLQ)
+(type            'VEC #"01__ ____" 'VLQ Rvec?)
+(type            'STR #"10__ ____" 'VLQ Rstr?)
+(type          'BYTES #"11__ ____" 'VLQ Rbytes?)
 
-    (define (Rvec-in bs)
-      (define f (current-runic-file))
-      (define offset-len (file-offset-len f))
-      (define-values (len should-be-0) (quotient/remainder (bytes-length bs) offset-len))
-      (unless (zero? should-be-0) (error 'Rvec-in "bytes is wrong size"))
-      (define v
-        (for/vector #:length len ([i (in-range len)])
-          (-obj f
-                (integer-bytes->integer bs UNSIGNED LITTLE-ENDIAN
-                                        (* i offset-len) (* (add1 i) offset-len)))))
-      (Rvec v))
-    (define (Rvec-out x)
-      (match-define (Rvec v) x)
-      (define f (current-runic-file))
-      (define offset-len (file-offset-len f))
-      (define bs (make-bytes (* offset-len (vector-length v)) 0))
-      (for ([ve (in-vector v)] [i (in-naturals)])
-        (match-define (-obj (== f) o) ve)
-        (integer->integer-bytes o offset-len UNSIGNED LITTLE-ENDIAN
-                                (* i offset-len) (* (add1 i) offset-len)))
-      bs)
+(define Rval-type/c
+  (apply symbols (map tag-info-type TYPE-TAGS)))
 
-    (define time-s+ns? datetime?)
-    (define (time-s+ns-in bs)
-      (define dt (posix->datetime (integer-bytes->integer bs SIGNED LITTLE-ENDIAN 0 3)))
-      (+nanoseconds dt (integer-bytes->integer bs SIGNED LITTLE-ENDIAN 4 7)))
-    (define (time-s+ns-out x)
-      (bytes-append (time-s-out x)
-                    (integer->integer-bytes (->nanoseconds x) 64bit SIGNED LITTLE-ENDIAN)))
+;; Values
 
-    (define time-s? datetime?)
-    (define (time-s-in bs) (posix->datetime (integer-bytes->integer bs SIGNED LITTLE-ENDIAN)))
-    (define (time-s-out x) (integer->integer-bytes (floor (->posix x)) 64bit SIGNED LITTLE-ENDIAN))
+(struct Roff ())
+(struct Rval Roff (f o))
+(struct Rglobal Roff (i))
 
-    (define (type-constant bit-string value)
-      (define (? x) (eq? value x))
-      (define (in bs) value)
-      (define (out x) (error 'type-constant "No output bytes"))
-      (type #:? ? #:bit bit-string #:length 0 #:in in #:out out))
-    (define (type-int bit-string signed? len)
-      (unless (member len '(1 2 4 8)) (error 'type-int "Doesn't support len ~e" len))
-      (define (? x) (and (integer? x) (<= (integer-length x) len)))
-      (define (in bs) (integer-bytes->integer bs signed? LITTLE-ENDIAN))
-      (define (out x) (integer->integer-bytes x len signed? LITTLE-ENDIAN))
-      (type #:? ? #:bit bit-string #:length len #:in in #:out out))
-    (define (type-flo bit-string len)
-      (define ?
-        (match len
-          [4 single-flonum?]
-          [8 flonum?]
-          [_ (error 'type-flo "Doesn't support len ~e" len)]))
-      (define (in bs) (floating-point-bytes->real bs LITTLE-ENDIAN))
-      (define (out x) (real->floating-point-bytes x len LITTLE-ENDIAN))
-      (type #:? ? #:bit bit-string #:length len #:in in #:out out))
-    (define (type-raw bit-string len t)
-      (define (? x) (and (Rraw? x) (eq? (Rraw-t x) t)))
-      (define (in bs) (Rraw t bs))
-      (define (out x) (Rraw-bs x))
-      (type #:? ? #:bit bit-string #:length len #:in in #:out out))
-    (define (type #:? ? #:bit bit-string #:length len #:in in #:out out)
-      (define-values (mask tg)
-        (for/fold ([m 0] [t 0] [i (expt 2 7)] #:result (values m t)) ([b (in-bytes bit-string)])
-          (match (integer->char b)
-            [#\0     (values (+ m i)    t    (/ i 2))]
-            [#\1     (values (+ m i) (+ t i) (/ i 2))]
-            [#\_     (values    m       t    (/ i 2))]
-            [#\space (values    m       t       i   )])))
-      (-type mask tg ? len in out))
+(define (Rval-tagb rv) 'XXX)
+(define (Rval-type rv)
+  (define b (Rval-tagb rv))
+  (for/or ([m*t (in-list TYPE-TAGS)])
+    (match-define (tag-info m t ty) m*t)
+    (and (= (bitwise-and m b) t)
+         ty)))
+(define (Rval-len rv) 'XXX)
+(define (Rval-bs rv) 'XXX)
+(define (Rval-bs-oref rv idx) 'XXX)
+(define (Rval-bs-oset! rv idx o) 'XXX)
+(define (Rval-bs-set*! rv off bs) 'XXX)
+(define (Rval-bs-ref rv off) 'XXX)
+(define (Rval-bs-set! rv off b) 'XXX)
 
-    (list
-     (cons 't-bool-f (type-constant #"0000 0000" #f))
-     (cons 't-bool-t (type-constant #"0000 0001" #t))
-     (cons 't-u8          (type-int #"0000 0010" #f   8bit))
-     (cons 't-s8          (type-int #"0000 0011" #t   8bit))
-     (cons 't-u16         (type-int #"0000 0100" #f  16bit))
-     (cons 't-s16         (type-int #"0000 0101" #t  16bit))
-     (cons 't-u32         (type-int #"0000 0110" #f  32bit))
-     (cons 't-s32         (type-int #"0000 0111" #t  32bit))
-     (cons 't-u64         (type-int #"0000 1000" #f  64bit))
-     (cons 't-s64         (type-int #"0000 1001" #t  64bit))
-     (cons 't-u128        (type-raw #"0000 1010" 128bit 'U128))
-     (cons 't-s128        (type-raw #"0000 1011" 128bit 'S128))
-     (cons 't-u256        (type-raw #"0000 1100" 256bit 'U256))
-     (cons 't-s256        (type-raw #"0000 1101" 256bit 'S256))
-     (cons 't-time-s    (type #:bit #"0000 1110" #:length  64bit #:? time-s? #:in time-s-in #:out time-s-out))
-     (cons 't-time-s+ns (type #:bit #"0000 1111" #:length 128bit #:? time-s+ns? #:in time-s+ns-in #:out time-s+ns-out))
-     (cons 't-null   (type-constant #"0001 0000" '()))
-     (cons 't-void   (type-constant #"0001 0001" (void)))
-     (cons 't-undef  (type-constant #"0001 0010" undefined))
-     (cons 't-ref       (type #:bit #"0001 0011" #:length 'W #:? Rref? #:in Rref-in #:out Rref-out))
-     (cons 't-f16         (type-raw #"0001 0100"  16bit 'F16))
-     (cons 't-f32         (type-flo #"0001 0101"  32bit))
-     (cons 't-f64         (type-flo #"0001 0110"  64bit))
-     (cons 't-f128        (type-raw #"0001 0111" 128bit 'F128))
-     (cons 't-f256        (type-raw #"0001 1000" 256bit 'F256))
-     (cons 't-fd32        (type-raw #"0001 1001"  32bit 'FD32))
-     (cons 't-fd64        (type-raw #"0001 1010"  64bit 'FD64))
-     (cons 't-fd128       (type-raw #"0001 1011" 128bit 'FD128))
-     (cons 't-fb16        (type-raw #"0001 1100"  16bit 'FB16))
-     ;; Unallocated for extensions  #"0001 1101"
-     ;; Unallocated for extensions  #"0001 1110"
-     ;; Unallocated for extensions  #"0001 1111"
-     (cons 't-bignum      (type-raw #"0010 ____" 'VLQ 'BIGNUM))
-     (cons 't-bigfloat    (type-raw #"0011 ____" 'VLQ 'BIGFLO))
-     (cons 't-vector    (type #:bit #"01__ ____" #:length 'VLQ_W #:? Rvec? #:in Rvec-in #:out Rvec-out))
-     (cons 't-string    (type #:bit #"10__ ____" #:length 'VLQ #:? string? #:in bytes->string/utf-8 #:out string->bytes/utf-8))
-     (cons 't-bytes     (type #:bit #"11__ ____" #:length 'VLQ #:? bytes? #:in (λ (x) x) #:out (λ (x) x))))))
+(define (Ratom? rv) (and (Rval? rv) (hash-has-key? ATOM->IN (Rval-type rv))))
+(define (Ratom f a) 'XXX)
+(define (Ratom! rv a) 'XXX)
+(define (Ratom-val rv)
+  ((hash-ref ATOM->IN (Rval-type rv)) (Rval-bs rv)))
+(define Ratom/c (apply or/c ATOM-?s))
+
+(define (Rcons f oa od) 'XXX)
+(define (Rcons! rv oa od) 'XXX)
+(define (Rcar rv) (Rval-bs-oref rv 0))
+(define (Rcdr rv) (Rval-bs-oref rv 1))
+(define (Rset-car! rv o) (Rval-bs-oset! rv 0 o))
+(define (Rset-cdr! rv o) (Rval-bs-oset! rv 1 o))
+(define (Rcons->cons rv) (cons (Rcar rv) (Rcdr rv)))
+
+(define (Rbox f ro) 'XXX)
+(define (Rbox! rv ro) 'XXX)
+(define (Runbox rv) (Rval-bs-oref rv 0))
+(define (Rset-box! rv o) (Rval-bs-oset! rv 0 o))
+
+(define Rraw-type/c (apply symbols RAW-TYPES))
+(define (Rraw? rv) (and (Rval? rv) (member (Rval-type rv) RAW-TYPES) #t))
+(define (Rraw-type rv) (Rval-type rv))
+(define (Rraw f t len) 'XXX)
+(define (Rraw! rv t len) 'XXX)
+(define (Rraw-bs rv) (Rval-bs rv))
+(define (Rraw-bs! rv bs) (Rval-bs-set*! rv 0 bs))
+
+(define (Rvec f len) 'XXX)
+(define (Rvec! rv len) 'XXX)
+(define (Rvec-len rv)
+  (/ (Rval-len rv) (Rfile-offset-len (Rval-f rv))))
+(define (Rvec-ref rv idx)
+  (Rval-bs-oref rv idx))
+(define (Rvec-set! rv idx o)
+  (Rval-bs-oset! rv idx o))
+(define (Rvec->vector rv)
+    (build-vector (Rvec-len rv) (λ (i) (Rvec-ref rv i))))
+
+(define (Rstr f utf8-len) 'XXX)
+(define (Rstr! rv utf8-len) 'XXX)
+(define (Rstr-utf8-len rv) (Rval-len rv))
+(define (Rstr-len rv) (bytes-utf-8-length (Rval-bs rv)))
+(define (Rstr-ref rv idx)
+  (bytes-utf-8-ref (Rval-bs rv) idx))
+(define (Rstr-set! rv idx nc)
+  (Rval-bs-set*! rv (bytes-utf-8-index (Rval-bs rv) idx)
+                 (string->bytes/utf-8 (string nc))))
+(define (Rstr->string rv)
+  (bytes->string/utf-8 (Rval-bs rv)))
+
+(define (Rbytes f len) 'XXX)
+(define (Rbytes! rv len) 'XXX)
+(define (Rbytes-len rv) (Rval-len rv))
+(define (Rbytes-ref rv idx)
+  (Rval-bs-ref rv idx))
+(define (Rbytes-set! rv idx nb)
+  (Rval-bs-set! rv idx nb))
+(define (Rbytes-replace! rv nbs)
+  (Rval-bs-set*! rv 0 nbs))
+(define (Rbytes->bytes rv)
+  (Rval-bs rv))
 
 ;; Helpers
 
@@ -214,13 +303,17 @@
   (write-bytes bs fp))
 (define (->unsigned-bs len x)
   (integer->integer-bytes x len UNSIGNED LITTLE-ENDIAN))
+(define Rfile-read 'XXX)
+(define Rfile-write! 'XXX)
+(define Rfile-readU 'XXX)
+(define Rfile-writeU! 'XXX)
 
-;; Interface
+;; XXX need to deal with OOM/GC during allocation
 
-(define current-runic-file (make-parameter #f))
-(struct -file (path ip op roots offset-sz block-sz))
-(define file-offset-len -file-offset-sz)
-(struct -obj (f o))
+;; Library
+
+(define-struct-define define-Rfile Rfile)
+(struct Rfile (open?-b path ip op roots offset-len))
 
 (define (runic-open path #:create? [create? #t])
   (define exists? (file-exists? path))
@@ -229,26 +322,132 @@
   (define op (open-output-file path #:exists (if exists? 'can-update 'update)))
   (define ip (open-input-file path))
   (unless exists?
-    (write-bytes@! op shebang-off shebang-default-bs)
-    (write-bytes@! op lang-off lang-bs)
-    (write-bytes@! op version-off version-bs)
-    (write-bytes@! op flags-off flags-default-bs)
-    (write-bytes@! op block-sz-off (->unsigned-bs 16bit (arithmetic-shift block-sz-default -8)))
-    (write-bytes@! op free-ptr-off (->unsigned-bs 16bit (* 2 block-sz-default)))
-    (write-bytes@! op free-abk-off (->unsigned-bs 16bit (+ first-block-off block-header-sz-default)))
-    (write-bytes@! op free-cbk-off (->unsigned-bs 16bit (+ (* 1 block-sz-default) block-header-sz-default)))
-    (write-bytes@! op root-obj-off (->unsigned-bs 16bit 0))
-    (write-bytes@! op glob-obj-off (->unsigned-bs 16bit 0))
+    (write-bytes@! op  shebang-off shebang-default-bs)
+    (write-bytes@! op     lang-off lang-bs)
+    (write-bytes@! op  version-off version-bs)
+    (write-bytes@! op    flags-off flags-default-bs)
+    (write-bytes@! op free-bpt-off (->unsigned-bs 64bit block-size))
+    (write-bytes@! op free-opt-off (->unsigned-bs 64bit (+ first-block-off block-header-size)))
+    (write-bytes@! op root-obj-off (->unsigned-bs 64bit 0))
+    (write-bytes@! op glob-obj-off (->unsigned-bs 64bit 0))
     (write-bytes@! op filemeta-off filemeta-default-bs)
-    ;; Initialize atom block
-    (write-bytes@! op first-block-off (->unsigned-bs 16bit 0))
-    (write-bytes@! op (+ first-block-off 16bit) (->unsigned-bs 16bit 0))
-    ;; Initialize cons block
-    (write-bytes@! op (* 1 block-sz-default) (->unsigned-bs 16bit 0))
-    (write-bytes@! op (+ (* 1 block-sz-default) 16bit) (->unsigned-bs 16bit 0))
+    (write-bytes@! op    first-block-off        (->unsigned-bs 64bit 0))
+    (write-bytes@! op (+ first-block-off 64bit) (->unsigned-bs 64bit 0))
     (void))
   (define roots (make-weak-hasheq))
   ;; XXX check things
   (define offset-sz 'XXX)
-  (define block-sz 'XXX)
-  (-file path ip op roots offset-sz block-sz))
+  (Rfile (box #t) path ip op roots offset-sz))
+
+(define (Rfile-open? f)
+  (define-Rfile f)
+  (unbox open?-b))
+(define (Rofile? x)
+  (and (Rfile? x) (Rfile-open? x)))
+
+(define (runic-close f)
+  (define-Rfile f)
+  (set-box! open?-b #f)
+  (close-input-port ip)
+  (close-output-port op))
+
+(define (runic-shebang f)
+  (Rfile-read f shebang-off shebang-len))
+(define (runic-shebang! f bs)
+  (Rfile-write! f shebang-off bs))
+
+(define (runic-filemeta f)
+  (Rfile-read f filemeta-off filemeta-len))
+(define (runic-filemeta! f bs)
+  (Rfile-write! f filemeta-off bs))
+
+(define (runic-root f)
+  (Rfile-readU f 64bit root-obj-off))
+(define (runic-root! f ob)
+  (Rfile-writeU! f 64bit root-obj-off ob))
+
+(define (runic-global f)
+  (Rfile-readU f 64bit glob-obj-off))
+(define (runic-global! f ob)
+  (Rfile-writeU! f 64bit glob-obj-off ob))
+
+;; Interface
+
+(define (bytes/c len [cmp =])
+  (λ (x) (and (bytes? x) (cmp (bytes-length x) len))))
+;; XXX Rval?/etc functions don't check that the file is open
+(provide
+ (contract-out
+  [Rfile? (-> any/c boolean?)]
+  [runic-open (->* (path-string?) (#:create? boolean?) Rfile?)]
+  [Rfile-open? (-> Rfile? boolean?)]
+  [runic-close (-> Rofile? void?)]
+  
+  [runic-shebang (-> Rofile? (bytes/c shebang-len))]
+  [shebang-pad (-> (bytes/c shebang-len <=) (bytes/c shebang-len =))]
+  [runic-shebang! (-> Rofile? (bytes/c shebang-len) void?)]
+  [runic-filemeta (-> Rofile? (bytes/c filemeta-len))]
+  [runic-filemeta! (-> Rofile? (bytes/c filemeta-len) void?)]
+  [runic-root (-> Rofile? Roff?)]
+  [runic-root! (-> Rofile? Roff? void?)]
+  [runic-global (-> Rofile? Roff?)]
+  [runic-global! (-> Rofile? Roff? void?)]
+  
+  [Roff? (-> any/c boolean?)]
+  [Rval? (-> any/c boolean?)]
+  [struct Rglobal ([i byte?])]
+  [Rval-type (-> Rval? Rval-type/c)]
+  
+  [Ratom? (-> any/c boolean?)]
+  [Ratom/c contract?]
+  [Ratom (-> Rofile? Ratom/c Rval?)]
+  [Ratom! (-> Rval? Ratom/c void?)]
+  [Ratom-val (-> Ratom? Ratom/c)]
+
+  [Rcons? (-> any/c boolean?)]
+  [Rcons (-> Rofile? Roff? Roff? Rval?)]
+  [Rcons! (-> Rval? Roff? Roff? void?)]
+  [Rcar (-> Rcons? Roff?)]
+  [Rcdr (-> Rcons? Roff?)]
+  [Rset-car! (-> Rcons? Roff? void?)]
+  [Rset-cdr! (-> Rcons? Roff? void?)]
+  [Rcons->cons (-> Rcons? (cons/c Roff? Roff?))]
+
+  [Rbox? (-> any/c boolean?)]
+  [Rbox (-> Rofile? Roff? Rval?)]
+  [Rbox! (-> Rval? Roff? void?)]
+  [Runbox (-> Rbox? Roff?)]
+  [Rset-box! (-> Rbox? Roff? void?)]
+
+  [Rraw? (-> any/c boolean?)]
+  [Rraw-type (-> Rraw? Rraw-type/c)]
+  [Rraw (-> Rofile? Rraw-type/c bytes? Rval?)]
+  [Rraw! (-> Rval? Rraw-type/c bytes? void?)]
+  [Rraw-bs (-> Rraw? bytes?)]
+  [Rraw-bs! (-> Rraw? bytes? void?)]
+
+  [Rvec? (-> any/c boolean?)]
+  [Rvec (-> Rofile? exact-nonnegative-integer? Rval?)]
+  [Rvec! (-> Rval? exact-nonnegative-integer? void?)]
+  [Rvec-len (-> Rvec? exact-nonnegative-integer?)]
+  [Rvec-ref (->i ([r Rvec?] [idx (r) (integer-in 0 (sub1 (Rvec-len r)))]) [o Roff?])]
+  [Rvec-set! (->i ([r Rvec?] [idx (r) (integer-in 0 (sub1 (Rvec-len r)))] [o Roff?]) [v void?])]
+  [Rvec->vector (-> Rvec? (vector/c #:immutable #t #:flat? #t Roff?))]
+
+  [Rstr? (-> any/c boolean?)]
+  [Rstr (-> Rofile? exact-nonnegative-integer? Rval?)]
+  [Rstr! (-> Rval? exact-nonnegative-integer? void?)]
+  [Rstr-utf8-len (-> Rstr? exact-nonnegative-integer?)]
+  [Rstr-len (-> Rstr? exact-nonnegative-integer?)]
+  [Rstr-ref (->i ([r Rstr?] [idx (r) (integer-in 0 (sub1 (Rstr-len r)))]) [c char?])]
+  [Rstr-set! (->i ([r Rstr?] [idx (r) (integer-in 0 (sub1 (Rstr-len r)))] [c char?]) [v void?])]
+  [Rstr->string (-> Rstr? string?)]
+
+  [Rbytes? (-> any/c boolean?)]
+  [Rbytes (-> Rofile? exact-nonnegative-integer? Rval?)]
+  [Rbytes! (-> Rval? exact-nonnegative-integer? void?)]
+  [Rbytes-len (-> Rbytes? exact-nonnegative-integer?)]
+  [Rbytes-ref (->i ([r Rbytes?] [idx (r) (integer-in 0 (sub1 (Rbytes-len r)))]) [b byte?])]
+  [Rbytes-set! (->i ([r Rbytes?] [idx (r) (integer-in 0 (sub1 (Rbytes-len r)))] [c byte?]) [v void?])]
+  [Rbytes-replace! (->i ([r Rbytes?] [bs (r) (bytes/c (Rbytes-len r))]) [v void?])]
+  [Rbytes->bytes (-> Rbytes? bytes?)]))
