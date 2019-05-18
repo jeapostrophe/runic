@@ -10,7 +10,7 @@
 #include <stdlib.h> // exit
 #include <string.h> // strcmp
 #include <fcntl.h> // open flags
-#include <unistd.h> // close
+#include <unistd.h> // close, sysconf
 #include <sys/stat.h> // open, fstat
 #include <sys/mman.h> // mmap, munmap
 #include "runic.h" // runic
