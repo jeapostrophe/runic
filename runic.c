@@ -8,6 +8,7 @@
 
 #include <stdio.h> // perror
 #include <stdlib.h> // exit
+#include <string.h> // strcmp
 #include <fcntl.h> // open flags
 #include <unistd.h> // close
 #include <sys/stat.h> // open, fstat
@@ -24,18 +25,21 @@ runic_t runic_open(const char* path, int mode)
 
 	switch (mode)
 	{
-	case READONLY: // Read-only
+	case READONLY:
 		___runic_open_on_args(&ro, path, O_RDONLY,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE);
+			S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE);
+			// Permissions: r-- r-- r--
 		break;
 	case READWRITE:
 		___runic_open_on_args(&ro, path, O_RDWR,
 			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
+			// Permissions: rw- r-- r--
 		break;
 	case CREATEWRITE:
 	default:
 		___runic_open_on_args(&ro, path, O_RDWR | O_CREAT,
 			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
+			// Permissions: rw- r-- r-- (Create)
 		break;
 	}
 	return ro;
@@ -62,11 +66,17 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 	}
 	if (open_flags & O_CREAT)
 	{
-		/* read the magic number, ensure file is correct */
+		//dont think this is right, access just first few chars from addr//
+		const uint8_t test[6] = ro->addr;
+		if (strcmp(test, "RUNIC") != 0)
+		{
+			perror("File is not a runic file.\n");
+			exit(1);
+		}
 	}
 	else
 	{
-		/* create the magic number */
+		/* create the magic number and root address (0) */
 	}
 }
 
@@ -76,16 +86,20 @@ void runic_close(runic_t ro)
 	close(ro.fd);
 }
 
-// alloc'ing a node is really a matter of alloc'ing file space for the node if none exists
-// remember these are mmap'd files
-// should it return an obj_t, or just alloc the space?
 runic_obj_t* runic_alloc_node(runic_t ro)
 {
 	runic_obj_t* rn = 0;
 
+	// access the file size
+	// navigate the node tree (to the deepest point) where children == null
+	// get address of the navigated node
+	// determine if there is space in the file for atleast 1 more node
+	// (if necesary) create the space
+	// create the node
+	// return the address of the node
+
 	return rn;
 }
-
 
 
 // - Write a function, given the aforementioned
