@@ -55,12 +55,14 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 	}
 	if (fstat(ro->fd, &(ro->sb)) == -1)
 	{
+		close(ro->fd);
 		perror("File access corrupted, couldn't get filesize.\n");
 		exit(1);
 	}
-	if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : _SC_PAGESIZE),
+	if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : sysconf(_SC_PAGESIZE)),
 		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED)
 	{
+		close(ro->fd);
 		perror("Mmap failed.\n");
 		exit(1);
 	}
@@ -73,6 +75,7 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 	{
 		if (strcmp((char*)ro->addr, "RUNIC\0") != 0)
 		{
+			runic_close(*ro);
 			perror("File is not a runic file.\n");
 			exit(1);
 		}
