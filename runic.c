@@ -65,18 +65,17 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		exit(1);
 	}
 	if (open_flags & O_CREAT)
+    {
+        fstat(ro->fd, &(ro->sb));
+		strcpy((char*)ro->addr, "RUNIC\0");
+    }
+	else
 	{
-		//dont think this is right, access just first few chars from addr//
-		const uint8_t test[6] = ro->addr;
-		if (strcmp(test, "RUNIC") != 0)
+		if (strcmp((char*)ro->addr, "RUNIC\0") != 0)
 		{
 			perror("File is not a runic file.\n");
 			exit(1);
 		}
-	}
-	else
-	{
-		/* create the magic number and root address (0) */
 	}
 }
 

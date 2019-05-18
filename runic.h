@@ -6,10 +6,14 @@
  * 			 format.
 ****/
 
-#include <stdio.h>
+#include <sys/stat.h> // struct stat
 
 #ifndef RUNIC_H
 #define RUNIC_H
+
+#ifdef __cplusplus
+	extern "C" {
+#endif
 
 typedef struct runic
 {
@@ -25,18 +29,11 @@ enum runic_file_modes
 	READONLY, READWRITE, CREATEWRITE
 };
 
-// TODO: Start by building API based on README.md
-// Go function by function. First three functions
-// listed.
-
 runic_t runic_open(const char* path, int mode);
 void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags, int permissions_flags, int prot_flags, int map_mode );
 
 void runic_close(runic_t runic_file);
 
-// alloc'ing a node is a matter of alloc'ing file space for the node if none exists
-// remember these are mmap'd files
-// should it return an obj_t, or just alloc the space?
 runic_obj_t* runic_alloc_node(runic_t ro);
 
 // - Write a function, given the aforementioned
@@ -44,5 +41,9 @@ runic_obj_t* runic_alloc_node(runic_t ro);
 // - node into file based on the passed handle.
 // --- Start with a function that just writes to
 // --- the passed handle.
+
+#ifdef __cplusplus
+	}
+#endif
 
 #endif /* runic.h */

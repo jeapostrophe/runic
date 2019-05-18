@@ -5,7 +5,7 @@ RUNIC_OBJECTS = runic.o
 TEST_OBJECTS = test test.o
 MAIN_OBJECTS = compiled main.o
 
-ALL: runic.o
+ALL: test runic.o
 
 #compiled: main.o
 #	$(CC) $(CFLAGS) -o compiled main.o
@@ -13,14 +13,14 @@ ALL: runic.o
 #main.o: main.c
 #	$(CC) $(CFLAGS) -c main.c -o main.o
 
-#test: test.o runic.o
-#	$(CC) $(CPPFLAGS) -lstdc++ -o test test.o runic.o
+test: test.o runic.o
+	$(CC) $(CPPFLAGS) -lstdc++ -o test test.o runic.o
 
-#test.o: test.cpp
-#	$(CC) $(CPPFLAGS) -c test.cpp -o test.o
+test.o: test.cpp
+	$(CC) $(CPPFLAGS) -c test.cpp -o test.o
 
 runic.o: runic.c
 	$(CC) $(CFLAGS) -c runic.c -o runic.o
 
 clean:
-	rm $(RUNIC_OBJECTS)
+	rm $(RUNIC_OBJECTS) $(TEST_OBJECTS)
