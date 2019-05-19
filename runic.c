@@ -67,10 +67,10 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		exit(1);
 	}
 	if (open_flags & O_CREAT)
-    {
-        fstat(ro->fd, &(ro->sb));
+	{
+		fstat(ro->fd, &(ro->sb));
 		strcpy((char*)ro->addr, "RUNIC");
-    }
+	}
 	else
 	{
 		if (strcmp((char*)ro->addr, "RUNIC") != 0)
