@@ -6,7 +6,9 @@ using namespace std;
 int main(void)
 {
 	auto ro = runic_open("example2.runic", CREATEWRITE);
-    printf("%lld\n", ro.sb.st_size);
+
+	printf("%lld\n", ro.sb.st_size);
+	
 	runic_close(ro);
 
 	return 0;
