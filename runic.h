@@ -22,13 +22,37 @@ typedef struct runic
 	uint8_t* addr;
 } runic_t;
 
-typedef uint8_t /*pointer to a node, not a struct*/ runic_obj_t;
-
 enum runic_file_modes
 {
 	READONLY, READWRITE, CREATEWRITE
 };
 
+typedef enum runic_obj_ty
+{
+	NODE, ATOM
+} runic_obj_ty_t;
+
+typedef struct runic_obj  // Do not use
+{
+	runic_obj_ty_t node;
+	struct runic_obj* left_child;  // ALWAYS a node
+	struct runic_obj* right_child; // node, atom or NULL
+} runic_obj_t;
+
+typedef struct runic_obj_node
+{
+	runic_obj_ty_t node;
+	struct runic_obj_node* left_child;  // ALWAYS a node
+	struct runic_obj* right_child; // node, atom or NULL
+} runic_obj_node_t;
+
+typedef struct runic_obj_atom
+{
+	runic_obj_ty_t node;
+	char* value;  // ALWAYS a node
+	struct runic_obj* right_child; // node, atom or NULL
+} runic_obj_atom_t;
+	
 runic_t runic_open(const char* path, int mode);
 void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags, int permissions_flags, int prot_flags, int map_mode );
 

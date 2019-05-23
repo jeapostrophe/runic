@@ -59,17 +59,31 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		perror("File access corrupted, couldn't get filesize.\n");
 		exit(1);
 	}
-	if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : sysconf(_SC_PAGESIZE)),
-		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED)
+    if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : 1), // arg 2 is a nonzero value, even on create
+		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // creates the file in disk (if necessary) and generates a map
 	{
 		close(ro->fd);
 		perror("Mmap failed.\n");
 		exit(1);
 	}
-	if (open_flags & O_CREAT)
+	if (open_flags & O_CREAT) // generates file space
 	{
-		fstat(ro->fd, &(ro->sb));
-		strcpy((char*)ro->addr, "RUNIC");
+		runic_close(*ro); // close mmap and file
+		if ((ro->fd = open(path, open_flags, permissions_flags)) == -1) // reopen file
+		{
+			perror("File open failed.\n");
+			exit(1);
+		}
+		write(ro->fd, "\0", sysconf(_SC_PAGESIZE)); // write into file (4K)
+		if ((ro->addr = mmap(NULL, (sysconf(_SC_PAGESIZE)),
+		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // mmap file (4K)
+		{
+			close(ro->fd);
+			perror("Mmap failed.\n");
+			exit(1);
+		}
+		fstat(ro->fd, &(ro->sb)); // stat file (should be 4K)
+		strcpy((char*)ro->addr, "RUNIC"); // insert magic number and return
 	}
 	else
 	{
@@ -96,9 +110,14 @@ runic_obj_t* runic_alloc_node(runic_t ro)
 	// navigate the node tree (to the deepest point) where children == null
 	// get address of the navigated node
 	// determine if there is space in the file for atleast 1 more node
+	// --- current address depth + node size <= file size
 	// (if necesary) create the space
+	// --- create a new runic_t, run createwrite @ 2x size of file
+	// --- perform stop and copy
 	// create the node
+	// --- 
 	// return the address of the node
+	// ---
 
 	return rn;
 }
@@ -109,3 +128,10 @@ runic_obj_t* runic_alloc_node(runic_t ro)
 // - node into runic_file based on the passed handle.
 // --- Start with a function that just writes to
 // --- the passed handle.
+
+
+
+//   const or atom  == runic_obj_t
+//        const   ==  enum'd runic_obj_ty_t
+//    /          					 \
+// atom ==  runic_obj_ty_t		 const or null
