@@ -84,7 +84,7 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		}
 		fstat(ro->fd, &(ro->sb)); // stat file (should be 4K)
 		strcpy((char*)ro->mmap_addr, "RUNIC"); // insert magic number and return
-		ro->last_addr = 0x0 + OFFSET; // set the last node in the tree
+		ro->last_addr = (uint64_t*) 0x0 + OFFSET; // set the last node in the tree
 	}
 	else
 	{
@@ -107,10 +107,10 @@ runic_obj_node_t* runic_alloc_node(runic_t* ro)
 {
 	runic_obj_node_t* rn = NULL;
 
-	if ((ro->last_addr - ro->sb.st_size) > NODE_SIZE)
+	if ((uint64_t)(ro->last_addr - ro->sb.st_size) > (uint64_t)NODE_SIZE)
 	{
-		rn = ro->last_addr + NODE_SIZE;
-		ro->last_addr = rn;
+		rn = (runic_obj_node_t*)(ro->last_addr + (uint64_t)NODE_SIZE);  // this does not look right at all
+		ro->last_addr = (uint64_t*)rn;
 	}
 
 	return rn;
