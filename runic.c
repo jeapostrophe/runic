@@ -46,9 +46,9 @@ runic_t runic_open(const char* path, int mode)
 }
 
 void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
-	int permissions_flags, int prot_flags, int map_mode )
+	int share_flags, int prot_flags, int map_mode )
 {
-	if ((ro->fd = open(path, open_flags, permissions_flags)) == -1)
+	if ((ro->fd = open(path, open_flags, share_flags)) == -1)
 	{
 		perror("File open failed.\n");
 		exit(1);
@@ -59,7 +59,7 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		perror("File access corrupted, couldn't get filesize.\n");
 		exit(1);
 	}
-    if ((ro->addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : 1), // arg 2 is a nonzero value, even on create
+    if ((ro->mmap_addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : 1), // arg 2 is any nonzero value
 		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // creates the file in disk (if necessary) and generates a map
 	{
 		close(ro->fd);
@@ -69,25 +69,26 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 	if (open_flags & O_CREAT) // generates file space
 	{
 		runic_close(*ro); // close mmap and file
-		if ((ro->fd = open(path, open_flags, permissions_flags)) == -1) // reopen file
+		if ((ro->fd = open(path, open_flags, share_flags)) == -1) // reopen file
 		{
 			perror("File open failed.\n");
 			exit(1);
 		}
 		write(ro->fd, "\0", sysconf(_SC_PAGESIZE)); // write into file (4K)
-		if ((ro->addr = mmap(NULL, (sysconf(_SC_PAGESIZE)),
-		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // mmap file (4K)
+		if ((ro->mmap_addr = mmap(NULL, sysconf(_SC_PAGESIZE),
+			prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // mmap file (4K)
 		{
 			close(ro->fd);
 			perror("Mmap failed.\n");
 			exit(1);
 		}
 		fstat(ro->fd, &(ro->sb)); // stat file (should be 4K)
-		strcpy((char*)ro->addr, "RUNIC"); // insert magic number and return
+		strcpy((char*)ro->mmap_addr, "RUNIC"); // insert magic number and return
+		ro->last_addr = 0x0 + OFFSET; // set the last node in the tree
 	}
 	else
 	{
-		if (strcmp((char*)ro->addr, "RUNIC") != 0)
+		if (strcmp((char*)ro->mmap_addr, "RUNIC") != 0)
 		{
 			runic_close(*ro);
 			perror("File is not a runic file.\n");
@@ -98,30 +99,22 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 
 void runic_close(runic_t ro)
 {
-	munmap(ro.addr, ro.sb.st_size);
+	munmap(ro.mmap_addr, ro.sb.st_size);
 	close(ro.fd);
 }
 
-runic_obj_t* runic_alloc_node(runic_t ro)
+runic_obj_node_t* runic_alloc_node(runic_t* ro)
 {
-	runic_obj_t* rn = 0;
+	runic_obj_node_t* rn = NULL;
 
-	// access the file size
-	// navigate the node tree (to the deepest point) where children == null
-	// get address of the navigated node
-	// determine if there is space in the file for atleast 1 more node
-	// --- current address depth + node size <= file size
-	// (if necesary) create the space
-	// --- create a new runic_t, run createwrite @ 2x size of file
-	// --- perform stop and copy
-	// create the node
-	// --- 
-	// return the address of the node
-	// ---
+	if ((ro->last_addr - ro->sb.st_size) > NODE_SIZE)
+	{
+		rn = ro->last_addr + NODE_SIZE;
+		ro->last_addr = rn;
+	}
 
 	return rn;
 }
-
 
 // - Write a function, given the aforementioned
 // - signature or similar, that inserts a root
@@ -131,7 +124,7 @@ runic_obj_t* runic_alloc_node(runic_t ro)
 
 
 
-//   const or atom  == runic_obj_t
-//        const   ==  enum'd runic_obj_ty_t
-//    /          					 \
-// atom ==  runic_obj_ty_t		 const or null
+// const or atom  == runic_obj_t
+//      const   ==  enum'd runic_obj_ty_t
+//    /          				    	 \
+// atom ==  runic_obj_ty_t		     const or null

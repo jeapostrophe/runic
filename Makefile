@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Werror -pedantic --std=c11 -g 
-CPPFLAGS = -Wall -Werror -pedantic --std=c++11 -g 
+CFLAGS = -Wall -Werror -pedantic --std=c11 -g
+CPPFLAGS = -Wall -Werror -pedantic --std=c++11 -g
 RUNIC_OBJECTS = runic.o
 TEST_OBJECTS = test test.o
 MAIN_OBJECTS = compiled main.o
