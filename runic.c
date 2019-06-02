@@ -8,6 +8,7 @@
 
 #include <stdio.h> // perror
 #include <stdlib.h> // exit
+#include <stdbool.h> // bool
 #include <string.h> // strcmp
 #include <fcntl.h> // open flags
 #include <unistd.h> // close, sysconf
@@ -19,9 +20,9 @@
 // Go function by function. First three functions
 // listed.
 
-runic_t runic_open(const char* path, int mode)
+runic_core_t runic_open(const char* path, int mode)
 {
-	runic_t ro;
+	runic_core_t ro;
 
 	switch (mode)
 	{
@@ -45,7 +46,7 @@ runic_t runic_open(const char* path, int mode)
 	return ro;
 }
 
-void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
+void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags,
 	int share_flags, int prot_flags, int map_mode )
 {
 	if ((ro->fd = open(path, open_flags, share_flags)) == -1)
@@ -59,7 +60,7 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 		perror("File access corrupted, couldn't get filesize.\n");
 		exit(1);
 	}
-    if ((ro->mmap_addr = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : 1), // arg 2 is any nonzero value
+    if ((ro->base = mmap(NULL, (ro->sb.st_size ? ro->sb.st_size : 1), // arg 2 is any nonzero value
 		prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // creates the file in disk (if necessary) and generates a map
 	{
 		close(ro->fd);
@@ -75,7 +76,7 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 			exit(1);
 		}
 		write(ro->fd, "\0", sysconf(_SC_PAGESIZE)); // write into file (4K)
-		if ((ro->mmap_addr = mmap(NULL, sysconf(_SC_PAGESIZE),
+		if ((ro->base = mmap(NULL, sysconf(_SC_PAGESIZE),
 			prot_flags, map_mode, ro->fd, 0)) == MAP_FAILED) // mmap file (4K)
 		{
 			close(ro->fd);
@@ -83,12 +84,14 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 			exit(1);
 		}
 		fstat(ro->fd, &(ro->sb)); // stat file (should be 4K)
-		strcpy((char*)ro->mmap_addr, "RUNIC"); // insert magic number and return
-		ro->last_addr = (uint64_t*) 0x0 + OFFSET; // set the last node in the tree
+		strcpy((char*)ro->base, "RUNIC"); // insert magic number and return
+		((runic_file_t*)(ro->base + OFFSET))->root = ROOT; // set the first node in the tree
+		((runic_file_t*)(ro->base + OFFSET))->free = ROOT; // start of free
+		// insert the root node?
 	}
 	else
 	{
-		if (strcmp((char*)ro->mmap_addr, "RUNIC") != 0)
+		if (strcmp((char*)ro->base, "RUNIC") != 0 || ((runic_file_t*)(ro->base + OFFSET))->root != ROOT)
 		{
 			runic_close(*ro);
 			perror("File is not a runic file.\n");
@@ -97,23 +100,47 @@ void ___runic_open_on_args(runic_t* ro, const char* path, int open_flags,
 	}
 }
 
-void runic_close(runic_t ro)
+void runic_close(runic_core_t ro)
 {
-	munmap(ro.mmap_addr, ro.sb.st_size);
+	munmap(ro.base, ro.sb.st_size);
 	close(ro.fd);
 }
 
-runic_obj_node_t* runic_alloc_node(runic_t* ro)
+runic_obj_node_t* runic_alloc_node(runic_core_t* ro)
 {
 	runic_obj_node_t* rn = NULL;
 
-	if ((uint64_t)(ro->last_addr - ro->sb.st_size) > (uint64_t)NODE_SIZE)
+	if (___calc_remaing_space(*ro))
 	{
-		rn = (runic_obj_node_t*)(ro->last_addr + (uint64_t)NODE_SIZE);  // this does not look right at all
-		ro->last_addr = (uint64_t*)rn;
+		rn = (runic_obj_node_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base + OFFSET))->free));
+		((runic_file_t*)(ro->base + OFFSET))->free += NODE_SIZE;
+		rn->tag = NODE_TAG;
+		rn->left_child_offset = NODE_LEFT_OFFSET;
+		rn->right_child_offset = NODE_RIGHT_OFFSET;
+
+		return rn;
+	}
+	else
+	{
+		perror("Not enough space.\n");
+		exit(1);
+	}
+}
+
+bool ___calc_remaing_space(runic_core_t ro)
+{
+	bool yes_no = false;
+	uint64_t free, size;
+
+	free = ((runic_file_t*)(ro.base + OFFSET))->free;
+	size = ro.sb.st_size;
+
+	if ((free + OFFSET) < size)
+	{
+		yes_no = true;
 	}
 
-	return rn;
+	return yes_no;
 }
 
 // - Write a function, given the aforementioned
@@ -127,4 +154,4 @@ runic_obj_node_t* runic_alloc_node(runic_t* ro)
 // const or atom  == runic_obj_t
 //      const   ==  enum'd runic_obj_ty_t
 //    /          				    	 \
-// atom ==  runic_obj_ty_t		     const or null
+// 	const or null              atom ==  runic_obj_ty_t	
