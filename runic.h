@@ -16,12 +16,12 @@
 	extern "C" {
 #endif
 
-#define ROOT 0x15
-#define OFFSET 0x05
+#define DEFAULT_ROOT 0x15
+#define BASE_FILE_OFFSET 0x05
 #define NODE_SIZE 0x04
 #define NODE_TAG 0x00
-#define NODE_LEFT_OFFSET 0x04
-#define NODE_RIGHT_OFFSET 0x08
+#define DEFAULT_NODE_LEFT_OFFSET 0x04
+#define DEFAULT_NODE_RIGHT_OFFSET 0x08
 #define ATOM_TAG_SIZE 0x02
 
 typedef struct runic_core
@@ -38,7 +38,7 @@ enum runic_file_modes
 
 typedef struct runic_file
 {
-	uint64_t root; // 8 bytes, value is always 21
+	uint64_t root; // 8 bytes, default value is 21
 	uint64_t free; // 8 bytes, value is the address of free
 } runic_file_t;
 
@@ -51,8 +51,8 @@ typedef struct runic_obj_atom
 typedef struct runic_obj_node
 {
 	uint16_t tag; // 2 bytes, value is 0
-	uint8_t left_child_offset;  // 1 byte, value is a 4 byte offset (next node)
-	uint8_t right_child_offset; // 1 byte, value is an 8 byte offset (next node, atom, or null)
+	uint8_t left_child_offset;  // 1 byte, default value is a 4 byte offset (next node)
+	uint8_t right_child_offset; // 1 byte, default value is an 8 byte offset (next node, atom, or null)
 } runic_obj_node_t;
 	
 runic_core_t runic_open(const char* path, int mode);
