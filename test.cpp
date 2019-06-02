@@ -9,7 +9,7 @@ int main(void)
 
 	printf("%lld\n", ro.sb.st_size);
 
-    runic_obj_node_t* rn = runic_alloc_node(&ro);
+	runic_obj_node_t* rn = runic_alloc_node(&ro);
 	runic_obj_node_t* rn2 = runic_alloc_node(&ro);
 	
 	runic_close(ro);
