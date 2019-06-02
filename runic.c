@@ -88,7 +88,6 @@ void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags,
 		strcpy((char*)(ro->base), "RUNIC"); // insert magic number and return
 		((runic_file_t*)(ro->base))->root = DEFAULT_ROOT; // set the first node in the tree
 		((runic_file_t*)(ro->base))->free = DEFAULT_ROOT; // start of free
-		// insert the root node?
 	}
 	else
 	{

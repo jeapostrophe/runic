@@ -17,7 +17,7 @@
 #endif
 
 #pragma pack(push)
-#pragma pack(1)
+#pragma pack(1) // file should be byte-aligned by 1 byte (no padding)
 
 #define HEADER_SIZE 0x05
 #define DEFAULT_ROOT 0x15
@@ -40,22 +40,22 @@ enum runic_file_modes
 
 typedef struct runic_file
 {
-	char header[HEADER_SIZE];
-	uint64_t root; // 8 bytes, default value is 21
-	uint64_t free; // 8 bytes, value is the address of free
+	char header[HEADER_SIZE]; // 5 bytes, is the magic number ("RUNIC")
+	uint64_t root; // 8 bytes, min value is 21 (5+8+8)
+	uint64_t free; // 8 bytes, value is the address after last node/atom
 } runic_file_t;
 
 typedef struct runic_obj_atom
 {
 	uint16_t tag; // 2 bytes, value is n < 65,536
-	char* value; // 1*n bytes
+	char* value; // 1 * n bytes
 } runic_obj_atom_t;
 
 typedef struct runic_obj_node
 {
 	uint16_t tag; // 2 bytes, value is 0
-	uint64_t left_child_offset;  // 8 byte, default value is null
-	uint64_t right_child_offset; // 8 byte, default value is null
+	uint64_t left_child_offset;  // 8 bytes, default value is null
+	uint64_t right_child_offset; // 8 bytes, default value is null
 } runic_obj_node_t;
 	
 runic_core_t runic_open(const char* path, int mode);
