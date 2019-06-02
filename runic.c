@@ -8,6 +8,7 @@
 
 #include <stdio.h> // perror
 #include <stdlib.h> // exit
+#include <stddef.h> // ptrdiff_t
 #include <stdbool.h> // bool
 #include <string.h> // strcmp
 #include <fcntl.h> // open flags
@@ -84,14 +85,14 @@ void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags,
 			exit(1);
 		}
 		fstat(ro->fd, &(ro->sb)); // stat file (should be 4K)
-		strcpy((char*)ro->base, "RUNIC"); // insert magic number and return
-		((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->root = DEFAULT_ROOT; // set the first node in the tree
-		((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->free = DEFAULT_ROOT; // start of free
+		strcpy((char*)(ro->base), "RUNIC"); // insert magic number and return
+		((runic_file_t*)(ro->base))->root = DEFAULT_ROOT; // set the first node in the tree
+		((runic_file_t*)(ro->base))->free = DEFAULT_ROOT; // start of free
 		// insert the root node?
 	}
 	else
 	{
-		if (strcmp((char*)ro->base, "RUNIC") != 0 || ((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->root != DEFAULT_ROOT)
+		if (strcmp((char*)ro->base, "RUNIC") != 0)
 		{
 			runic_close(*ro);
 			perror("File is not a runic file.\n");
@@ -112,11 +113,11 @@ runic_obj_node_t* runic_alloc_node(runic_core_t* ro)
 
 	if (___calc_remaing_space(*ro))
 	{
-		rn = (runic_obj_node_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->free));
-		((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->free += NODE_SIZE;
+		rn = (runic_obj_node_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base))->free));
+		((runic_file_t*)(ro->base))->free += NODE_SIZE;
 		rn->tag = NODE_TAG;
-		rn->left_child_offset = DEFAULT_NODE_LEFT_OFFSET;
-		rn->right_child_offset = DEFAULT_NODE_RIGHT_OFFSET;
+		rn->left_child_offset = RUNIC_NULL;
+		rn->right_child_offset = RUNIC_NULL;
 
 		return rn;
 	}
@@ -132,7 +133,7 @@ bool ___calc_remaing_space(runic_core_t ro)
 	bool yes_no = false;
 	uint64_t free, file_size;
 
-	free = ((runic_file_t*)(ro.base + BASE_FILE_OFFSET))->free;
+	free = ((runic_file_t*)(ro.base))->free;
 	file_size = ro.sb.st_size;
 
 	if ((free + NODE_SIZE) < file_size)
@@ -149,8 +150,8 @@ runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size)
 
 	if (___calc_remaing_space_atom(*ro, size))
 	{
-		rn = (runic_obj_atom_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->free));
-		((runic_file_t*)(ro->base + BASE_FILE_OFFSET))->free += size + ATOM_TAG_SIZE;
+		rn = (runic_obj_atom_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base))->free));
+		((runic_file_t*)(ro->base))->free += size + ATOM_TAG_SIZE;
 		rn->tag = size;
 
 		return rn;
@@ -167,7 +168,7 @@ bool ___calc_remaing_space_atom(runic_core_t ro, size_t size)
 	bool yes_no = false;
 	uint64_t free, file_size;
 
-	free = ((runic_file_t*)(ro.base + BASE_FILE_OFFSET))->free;
+	free = ((runic_file_t*)(ro.base))->free;
 	file_size = ro.sb.st_size;
 
 	if ((free + size + ATOM_TAG_SIZE) < file_size)
