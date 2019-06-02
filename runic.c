@@ -47,7 +47,7 @@ runic_core_t runic_open(const char* path, int mode)
 }
 
 void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags,
-	int share_flags, int prot_flags, int map_mode )
+	int share_flags, int prot_flags, int map_mode)
 {
 	if ((ro->fd = open(path, open_flags, share_flags)) == -1)
 	{
@@ -130,18 +130,54 @@ runic_obj_node_t* runic_alloc_node(runic_core_t* ro)
 bool ___calc_remaing_space(runic_core_t ro)
 {
 	bool yes_no = false;
-	uint64_t free, size;
+	uint64_t free, file_size;
 
 	free = ((runic_file_t*)(ro.base + OFFSET))->free;
-	size = ro.sb.st_size;
+	file_size = ro.sb.st_size;
 
-	if ((free + OFFSET) < size)
+	if ((free + NODE_SIZE) < file_size)
 	{
 		yes_no = true;
 	}
 
 	return yes_no;
 }
+
+runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size)
+{
+	runic_obj_atom_t* rn = NULL;
+
+	if (___calc_remaing_space_atom(*ro, size))
+	{
+		rn = (runic_obj_atom_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base + OFFSET))->free));
+		((runic_file_t*)(ro->base + OFFSET))->free += size + ATOM_TAG_SIZE;
+		rn->tag = size;
+
+		return rn;
+	}
+    else
+    {
+        perror("Not enough space.\n");
+        exit(1);
+    }
+}
+
+bool ___calc_remaing_space_atom(runic_core_t ro, size_t size)
+{
+	bool yes_no = false;
+	uint64_t free, file_size;
+
+	free = ((runic_file_t*)(ro.base + OFFSET))->free;
+	file_size = ro.sb.st_size;
+
+	if ((free + size + ATOM_TAG_SIZE) < file_size)
+	{
+		yes_no = true;
+	}
+
+	return yes_no;
+}
+
 
 // - Write a function, given the aforementioned
 // - signature or similar, that inserts a root

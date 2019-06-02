@@ -22,6 +22,7 @@
 #define NODE_TAG 0x00
 #define NODE_LEFT_OFFSET 0x04
 #define NODE_RIGHT_OFFSET 0x08
+#define ATOM_TAG_SIZE 0x02
 
 typedef struct runic_core
 {
@@ -55,12 +56,17 @@ typedef struct runic_obj_node
 } runic_obj_node_t;
 	
 runic_core_t runic_open(const char* path, int mode);
-void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags, int share_flags, int prot_flags, int map_mode );
+void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags, int share_flags, int prot_flags, int map_mode);
 
 void runic_close(runic_core_t runic_file);
 
 runic_obj_node_t* runic_alloc_node(runic_core_t* ro);
-bool ___calc_remaing_space(runic_core_t rn);
+bool ___calc_remaing_space(runic_core_t ro);
+
+runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size);
+bool ___calc_remaing_space_atom(runic_core_t ro, size_t size);
+
+
 
 
 // - Write a function, given the aforementioned
