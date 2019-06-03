@@ -17,10 +17,6 @@
 #include <sys/mman.h> // mmap, munmap
 #include "runic.h" // runic
 
-// TODO: Start by building API based on README.md
-// Go function by function. First three functions
-// listed.
-
 runic_core_t runic_open(const char* path, int mode)
 {
 	runic_core_t ro;
@@ -98,6 +94,8 @@ void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags,
 			exit(1);
 		}
 	}
+
+	// TODO: handle errors better than exit(1)
 }
 
 void runic_close(runic_core_t ro)
@@ -115,8 +113,8 @@ runic_obj_node_t* runic_alloc_node(runic_core_t* ro)
 		rn = (runic_obj_node_t*)(ro->base + ((uint64_t)((runic_file_t*)(ro->base))->free));
 		((runic_file_t*)(ro->base))->free += NODE_SIZE;
 		rn->tag = NODE_TAG;
-		rn->left_child_offset = RUNIC_NULL;
-		rn->right_child_offset = RUNIC_NULL;
+		rn->left_child_offset = (uint64_t)NULL;
+		rn->right_child_offset = (uint64_t)NULL;
 
 		return rn;
 	}
@@ -124,12 +122,13 @@ runic_obj_node_t* runic_alloc_node(runic_core_t* ro)
 	{
 		perror("Not enough space.\n");
 		exit(1);
+		// TODO: Change this to garbage collect, attempt again.
 	}
 }
 
 bool ___calc_remaing_space(runic_core_t ro)
 {
-	bool yes_no = false;
+	bool status = false;
 	uint64_t free, file_size;
 
 	free = ((runic_file_t*)(ro.base))->free;
@@ -137,10 +136,10 @@ bool ___calc_remaing_space(runic_core_t ro)
 
 	if ((free + NODE_SIZE) < file_size)
 	{
-		yes_no = true;
+		status = true;
 	}
 
-	return yes_no;
+	return status;
 }
 
 runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size)
@@ -159,12 +158,13 @@ runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size)
     {
         perror("Not enough space.\n");
         exit(1);
+		// TODO: Change this to garbage collect, attempt again.
     }
 }
 
 bool ___calc_remaing_space_atom(runic_core_t ro, size_t size)
 {
-	bool yes_no = false;
+	bool status = false;
 	uint64_t free, file_size;
 
 	free = ((runic_file_t*)(ro.base))->free;
@@ -172,22 +172,20 @@ bool ___calc_remaing_space_atom(runic_core_t ro, size_t size)
 
 	if ((free + size + ATOM_TAG_SIZE) < file_size)
 	{
-		yes_no = true;
+		status = true;
 	}
 
-	return yes_no;
+	return status;
 }
 
+bool runic_set_root(runic_core_t* ro, runic_obj_node_t* rn)
+{
+	bool status = false;
 
-// - Write a function, given the aforementioned
-// - signature or similar, that inserts a root
-// - node into runic_file based on the passed handle.
-// --- Start with a function that just writes to
-// --- the passed handle.
+	// do some error checking here, null ptrs, etc.
 
+	uint64_t dist = (uint64_t)(rn - (uint64_t)(ro->base + DEFAULT_ROOT));
+	((runic_file_t*)(ro->base))->root = dist;
 
-
-// const or atom  == runic_obj_t
-//      const   ==  enum'd runic_obj_ty_t
-//    /          				    	 \
-// 	const or null              atom ==  runic_obj_ty_t	
+	return status;
+}

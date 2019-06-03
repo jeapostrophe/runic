@@ -23,8 +23,12 @@
 #define DEFAULT_ROOT 0x15
 #define NODE_SIZE 0x12
 #define NODE_TAG 0x00
-#define RUNIC_NULL 0x00
 #define ATOM_TAG_SIZE 0x02
+
+enum runic_file_modes
+{
+	READONLY, READWRITE, CREATEWRITE
+};
 
 typedef struct runic_core
 {
@@ -32,11 +36,6 @@ typedef struct runic_core
 	struct stat sb;
 	uint8_t* base;
 } runic_core_t;
-
-enum runic_file_modes
-{
-	READONLY, READWRITE, CREATEWRITE
-};
 
 typedef struct runic_file
 {
@@ -58,25 +57,18 @@ typedef struct runic_obj_node
 	uint64_t right_child_offset; // 8 bytes, default value is null
 } runic_obj_node_t;
 	
-runic_core_t runic_open(const char* path, int mode);
+runic_core_t runic_open(const char* path, int mode); // returns null on failure, otherwise returns the file core (address, size, file des, etc).
 void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags, int share_flags, int prot_flags, int map_mode);
 
-void runic_close(runic_core_t runic_file);
+void runic_close(runic_core_t runic_file); // closes the file
 
-runic_obj_node_t* runic_alloc_node(runic_core_t* ro);
+runic_obj_node_t* runic_alloc_node(runic_core_t* ro); // returns null on failure, otherwise returns the address of a node created in memory.
 bool ___calc_remaing_space(runic_core_t ro);
 
-runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size);
+runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size);  // returns null on failure, otherwise success.
 bool ___calc_remaing_space_atom(runic_core_t ro, size_t size);
 
-
-
-
-// - Write a function, given the aforementioned
-// - signature or similar, that inserts a root
-// - node into file based on the passed handle.
-// --- Start with a function that just writes to
-// --- the passed handle.
+bool runic_set_root(runic_core_t* ro, runic_obj_node_t* rn);  // returns false on failure, otherwise success.
 
 #pragma pack(pop)
 
