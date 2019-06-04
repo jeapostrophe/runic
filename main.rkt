@@ -231,6 +231,8 @@
 (struct Rval Roff (f o))
 (struct Rglobal Roff (i))
 
+;; XXX move f argument to end and add current-runic-file parameter
+
 (define (Rval-tagb rv)
   (match-define (Rval f o) rv)
   (Rfile-read1 f o))
@@ -388,17 +390,23 @@
     (Rglobal o)
     (Rval f o)))
 
-(define (ensure-open! f)
-  (unless (unbox (Rfile-open?-b f))
-    (error 'runic "File closed\n")))
-
 ;; XXX need to deal with OOM/GC during allocation
 (define (Rfile-alloc! f t) 'XXX)
 
-;; Library
+;; XXX separate readable and writeable
+(define (Rfile-open? f)
+  (define-Rfile f)
+  (and ip (not (port-closed? ip))
+       op (not (port-closed? op))))
+(define (ensure-open! f)
+  (unless (Rfile-open?)
+    (error 'runic "File closed\n")))
+
+;; Public Interface
 
 (define-struct-define define-Rfile Rfile)
-(struct Rfile (open?-b path ip op roots offset-len))
+(struct Rfile (path ip op roots offset-len))
+(define current-rfile (make-parameter #f))
 
 ;; XXX runic-read (no path)
 ;; XXX runic-open read-only
@@ -442,17 +450,13 @@
               [_ (error 'runic-open "Invalid flags: ~e" x)]))))
   (unless offset-len
     (error 'runic-open "offets-len didn't get set"))
-  (Rfile (box #t) path ip op roots offset-len))
+  (Rfile path ip op roots offset-len))
 
-(define (Rfile-open? f)
-  (define-Rfile f)
-  (unbox open?-b))
 (define (Rofile? x)
   (and (Rfile? x) (Rfile-open? x)))
 
 (define (runic-close f)
   (define-Rfile f)
-  (set-box! open?-b #f)
   (close-input-port ip)
   (close-output-port op))
 
@@ -553,3 +557,6 @@
   [Rbytes-set! (->i ([r Rbytes?] [idx (r) (integer-in 0 (sub1 (Rbytes-len r)))] [c byte?]) [v void?])]
   [Rbytes-replace! (->i ([r Rbytes?] [bs (r) (bytes/c (Rbytes-len r))]) [v void?])]
   [Rbytes->bytes (-> Rbytes? bytes?)]))
+
+;; XXX meta block (pointer to description, then binary blob, which
+;; allows efficient storage of many similar objects)
