@@ -560,3 +560,7 @@
 
 ;; XXX meta block (pointer to description, then binary blob, which
 ;; allows efficient storage of many similar objects)
+
+;; XXX procedure block
+
+;; XXX stream block
