@@ -6,74 +6,83 @@
  * 			 format.
 ****/
 
+// dependencies
 #include <stdbool.h> // bool
 #include <sys/stat.h> // struct stat
 
+// preprocessor statements
 #ifndef RUNIC_H
 #define RUNIC_H
-
 #ifdef __cplusplus
 	extern "C" {
 #endif
-
 #pragma pack(push)
 #pragma pack(1) // file should be byte-aligned by 1 byte (no padding)
 
-#define HEADER_SIZE 0x05
+// constants
 #define DEFAULT_ROOT 0x15
-#define NODE_SIZE 0x12
-#define NODE_TAG 0x00
-#define ATOM_TAG_SIZE 0x02
+#define HEADER_SIZE 0x05
+#define NODE_SIZE 0x11
+#define TAG_SIZE 0x01
+#define POINTER_SIZE 0x08
+#define NODE_TAG_VALUE 0x00
 
+// enums
 enum runic_file_modes
 {
 	READONLY, READWRITE, CREATEWRITE
 };
 
-typedef struct runic_core
+typedef enum runic_obj_ty
+{
+	NODE, ATOM
+} runic_obj_ty_t;
+
+// structs
+typedef struct runic
 {
 	int fd;
 	struct stat sb;
 	uint8_t* base;
-} runic_core_t;
+} runic_t;
 
-typedef struct runic_file
+typedef struct runic_obj
 {
-	char header[HEADER_SIZE]; // 5 bytes, is the magic number ("RUNIC")
-	uint64_t root; // 8 bytes, min value is 21 (5+8+8)
-	uint64_t free; // 8 bytes, value is the address after last node/atom
-} runic_file_t;
+	uint8_t* base;
+	uint64_t offset;
+} runic_obj_t;
 
-typedef struct runic_obj_atom
-{
-	uint16_t tag; // 2 bytes, value is n < 65,536
-	char* value; // 1 * n bytes
-} runic_obj_atom_t;
+// accessors
+//// file
+runic_t runic_open(const char* path, int mode); // returns null on failure, otherwise returns runic
+void runic_close(runic_t r); // closes the file
+runic_obj_t runic_root(runic_t r); // returns root node
 
-typedef struct runic_obj_node
-{
-	uint16_t tag; // 2 bytes, value is 0
-	uint64_t left_child_offset;  // 8 bytes, default value is null
-	uint64_t right_child_offset; // 8 bytes, default value is null
-} runic_obj_node_t;
-	
-runic_core_t runic_open(const char* path, int mode); // returns null on failure, otherwise returns the file core (address, size, file des, etc).
-void ___runic_open_on_args(runic_core_t* ro, const char* path, int open_flags, int share_flags, int prot_flags, int map_mode);
+//// node
+runic_obj_ty_t runic_obj_ty(runic_obj_t ro); // returns type of target object
+runic_obj_t runic_node_left(runic_obj_t ro);
+runic_obj_t runic_node_right(runic_obj_t ro);
 
-void runic_close(runic_core_t runic_file); // closes the file
+//// atom
+size_t runic_atom_size(runic_obj_t ro); // returns the size of atom
+const char* runic_atom_read(runic_obj_t ro); // returns atom value
 
-runic_obj_node_t* runic_alloc_node(runic_core_t* ro); // returns null on failure, otherwise returns the address of a node created in memory.
-bool ___calc_remaing_space(runic_core_t ro);
+// mutators
+//// file
+void runic_set_root(runic_t* r, runic_obj_t* ro);  // returns false on failure
+runic_obj_t runic_alloc_node(runic_t* r); // returns null on failure, otherwise, addr
+runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);  // returns null on failure
 
-runic_obj_atom_t* runic_alloc_atom(runic_core_t* ro, size_t size);  // returns null on failure, otherwise success.
-bool ___calc_remaing_space_atom(runic_core_t ro, size_t size);
+//// node
+void runic_node_set_left(runic_obj_t parent, runic_obj_t child);
+void runic_node_set_right(runic_obj_t parent, runic_obj_t child);
 
-bool runic_set_root(runic_core_t* ro, runic_obj_node_t* rn);  // returns false on failure, otherwise success.
+//// atom
+void runic_atom_write(runic_obj_t* ro, const char* value);
 
+// closing statements
 #pragma pack(pop)
-
 #ifdef __cplusplus
 	}
 #endif
-
 #endif /* runic.h */
