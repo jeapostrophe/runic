@@ -239,16 +239,23 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
 	}
 }
 
-//// node
-void runic_node_set_left(runic_obj_t parent, runic_obj_t child) {
-	// do some checks
-	((runic_obj_node_t*)parent.base + parent.offset)->left =
-		child.offset;
+runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
+	int i;
+	runic_obj_t ro;
+	for (i = 0; value[i] != '\0'; i++) {}
+	ro = runic_alloc_atom(r, i);
+	runic_atom_write(&ro, value);
+	return ro;
 }
-void runic_node_set_right(runic_obj_t parent, runic_obj_t child) {
+
+//// node
+void runic_node_set_left(runic_obj_t* parent, runic_obj_t* child) {
 	// do some checks
-	((runic_obj_node_t*)parent.base + parent.offset)->right =
-		child.offset;
+	child->offset = ((runic_obj_node_t*)parent->base + parent->offset)->left;
+}
+void runic_node_set_right(runic_obj_t* parent, runic_obj_t* child) {
+	// do some checks
+	child->offset = ((runic_obj_node_t*)parent->base + parent->offset)->right;
 }
 
 //// atom

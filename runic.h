@@ -72,10 +72,11 @@ const char* runic_atom_read(runic_obj_t ro); // returns atom value
 void runic_set_root(runic_t* r, runic_obj_t* ro);  // returns false on failure
 runic_obj_t runic_alloc_node(runic_t* r); // returns null on failure, otherwise, addr
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);  // returns null on failure
+runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value);
 
 //// node
-void runic_node_set_left(runic_obj_t parent, runic_obj_t child);
-void runic_node_set_right(runic_obj_t parent, runic_obj_t child);
+void runic_node_set_left(runic_obj_t* parent, runic_obj_t* child);
+void runic_node_set_right(runic_obj_t* parent, runic_obj_t* child);
 
 //// atom
 void runic_atom_write(runic_obj_t* ro, const char* value);
