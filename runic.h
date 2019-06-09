@@ -16,8 +16,6 @@
 #ifdef __cplusplus
 	extern "C" {
 #endif
-#pragma pack(push)
-#pragma pack(1) // file should be byte-aligned by 1 byte (no padding)
 
 // constants
 #define DEFAULT_ROOT 0x15
@@ -60,8 +58,8 @@ runic_obj_t runic_root(runic_t r); // returns root node
 
 //// node
 runic_obj_ty_t runic_obj_ty(runic_obj_t ro); // returns type of target object
-runic_obj_t runic_node_left(runic_obj_t ro);
-runic_obj_t runic_node_right(runic_obj_t ro);
+runic_obj_t runic_node_left(runic_obj_t ro); // returns obj
+runic_obj_t runic_node_right(runic_obj_t ro); // returns obj
 
 //// atom
 size_t runic_atom_size(runic_obj_t ro); // returns the size of atom
@@ -69,20 +67,19 @@ const char* runic_atom_read(runic_obj_t ro); // returns atom value
 
 // mutators
 //// file
-void runic_set_root(runic_t* r, runic_obj_t* ro);  // returns false on failure
+void runic_set_root(runic_t* r, runic_obj_t ro);  // returns false on failure
 runic_obj_t runic_alloc_node(runic_t* r); // returns null on failure, otherwise, addr
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);  // returns null on failure
-runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value);
+runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value); // allocs and writes
 
 //// node
-void runic_node_set_left(runic_obj_t* parent, runic_obj_t* child);
-void runic_node_set_right(runic_obj_t* parent, runic_obj_t* child);
+void runic_node_set_left(runic_obj_t* parent, runic_obj_t child); // sets parent->left = child
+void runic_node_set_right(runic_obj_t* parent, runic_obj_t child); // sets parent->right = child
 
 //// atom
-void runic_atom_write(runic_obj_t* ro, const char* value);
+void runic_atom_write(runic_obj_t* ro, const char* val); // sets atom's value
 
 // closing statements
-#pragma pack(pop)
 #ifdef __cplusplus
 	}
 #endif
