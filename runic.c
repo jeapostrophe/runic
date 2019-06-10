@@ -174,8 +174,14 @@ size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 }
 
 const char* runic_atom_read(runic_obj_t ro) { // returns atom value
-	// check for errors
-	return ((runic_obj_atom_t*)ro.base + ro.offset)->value;
+	size_t i, sz = runic_atom_size(ro);
+	char* c = (char*)malloc(sizeof(c) * sz);
+	for (i = 0; i < sz; i++)
+	{
+		c[i] = *(&((runic_obj_atom_t*)ro.base + ro.offset)->tag + TAG_SIZE + i);
+	}
+	return c;
+	// how
 }
 
 // mutators
@@ -250,10 +256,10 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
 }
 
 runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
-	size_t i;
+	size_t sz;
 	runic_obj_t ro;
-	for (i = 0; value[i] != '\0'; i++) {}
-	ro = runic_alloc_atom(r, i);
+	sz = strlen(value);
+	ro = runic_alloc_atom(r, sz);
 	runic_atom_write(&ro, value);
 	return ro;
 }
@@ -271,11 +277,9 @@ void runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
 //// atom
 void runic_atom_write(runic_obj_t* ro, const char* val) {
 	// do some checks for value size, as we dont want to overwrite
-    char c;
 	size_t i, sz = ((runic_obj_atom_t*)ro->base + ro->offset)->tag;
 	for (i = 0; i < sz ; i++) {
-		c = *(val + i);
-		*(((runic_obj_atom_t*)ro->base + ro->offset)->value + i) = c;
+		*(&((runic_obj_atom_t*)ro->base + ro->offset)->tag + TAG_SIZE + i) = *(val + i);
 	}
 	return;
 }
