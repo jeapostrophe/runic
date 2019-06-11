@@ -11,7 +11,7 @@
 #include <stdlib.h> // exit
 // #include <stddef.h> // ptrdiff_t
 #include <stdbool.h> // bool
-#include <string.h> // strcmp
+#include <string.h> // memcmp, memcpy
 #include <fcntl.h> // open flags
 #include <unistd.h> // close, sysconf
 #include <sys/stat.h> // open, fstat
@@ -79,18 +79,17 @@ void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 
 
 		//// for debugging only, remove later.
-		for (size_t i = 0; i < 4096; i++)
-		{
+		for (size_t i = 0; i < 4096; i++) {
 			r->base[i] = '\0'; // set the file blank, remove garbage data.
 		}
 		////
 		
 
-		strcpy((char*)r->base, "RUNIC"); // insert magic number and return
+		memcpy((char*)r->base, "RUNIC", HEADER_SIZE); // insert magic number and return
 		((runic_file_t*)r->base)->root = (uint64_t)NULL; // set first node
 		((runic_file_t*)r->base)->free = DEFAULT_ROOT; // start of free
 	} else {
-		if (strcmp((char*)r->base, "RUNIC") != 0) {
+		if (memcmp((char*)r->base, "RUNIC", HEADER_SIZE) != 0) {
 			runic_close(*r);
 			perror("File is not a runic file.\n");
 			exit(1);
@@ -174,14 +173,10 @@ size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 }
 
 const char* runic_atom_read(runic_obj_t ro) { // returns atom value
-	size_t i, sz = runic_atom_size(ro);
+	size_t sz = runic_atom_size(ro);
 	char* c = (char*)malloc(sizeof(c) * sz);
-	for (i = 0; i < sz; i++)
-	{
-		c[i] = *(&((runic_obj_atom_t*)ro.base + ro.offset)->tag + TAG_SIZE + i);
-	}
+	memcpy(c, (&((runic_obj_atom_t*)ro.base + ro.offset)->tag + TAG_SIZE), sz);
 	return c;
-	// how
 }
 
 // mutators
@@ -277,10 +272,8 @@ void runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
 //// atom
 void runic_atom_write(runic_obj_t* ro, const char* val) {
 	// do some checks for value size, as we dont want to overwrite
-	size_t i, sz = ((runic_obj_atom_t*)ro->base + ro->offset)->tag;
-	for (i = 0; i < sz ; i++) {
-		*(&((runic_obj_atom_t*)ro->base + ro->offset)->tag + TAG_SIZE + i) = *(val + i);
-	}
+	size_t sz = runic_atom_size(*ro);
+	memcpy((&((runic_obj_atom_t*)ro->base + ro->offset)->tag + TAG_SIZE), val, sz);
 	return;
 }
 
