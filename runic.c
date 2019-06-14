@@ -76,15 +76,6 @@ void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 			exit(1);
 		}
 		fstat(r->fd, &r->sb); // stat file (should be 4K)
-
-
-		//// for debugging only, remove later.
-		for (size_t i = 0; i < 4096; i++) {
-			r->base[i] = '\0'; // set the file blank, remove garbage data.
-		}
-		////
-		
-
 		memcpy((char*)r->base, "RUNIC", HEADER_SIZE); // insert magic number and return
 		((runic_file_t*)r->base)->root = (uint64_t)NULL; // set first node
 		((runic_file_t*)r->base)->free = DEFAULT_ROOT; // start of free
