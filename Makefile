@@ -5,7 +5,7 @@ RUNIC_OBJECTS = runic.o
 TEST_OBJECTS = test test.o
 MAIN_OBJECTS = compiled main.o
 
-ALL: test runic.o
+ALL: test
 
 #compiled: main.o
 #	$(CC) $(CFLAGS) -o compiled main.o

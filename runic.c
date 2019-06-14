@@ -9,7 +9,6 @@
 // dependencies
 #include <stdio.h> // perror
 #include <stdlib.h> // exit
-// #include <stddef.h> // ptrdiff_t
 #include <stdbool.h> // bool
 #include <string.h> // memcmp, memcpy
 #include <fcntl.h> // open flags
@@ -45,6 +44,7 @@ typedef struct runic_obj_atom {
 void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 	int share_flags, int prot_flags, int map_mode)
 {
+	runic_file_t* file_ref;
 	if ((r->fd = open(path, open_flags, share_flags)) == -1) {
 		perror("File open failed.\n");
 		exit(1);
@@ -75,10 +75,11 @@ void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 			perror("Mmap failed.\n");
 			exit(1);
 		}
+		file_ref = (runic_file_t*)r->base;
 		fstat(r->fd, &r->sb); // stat file (should be 4K)
 		memcpy((char*)r->base, "RUNIC", HEADER_SIZE); // insert magic number and return
-		((runic_file_t*)r->base)->root = (uint64_t)NULL; // set first node
-		((runic_file_t*)r->base)->free = DEFAULT_ROOT; // start of free
+		file_ref->root = (uint64_t)NULL; // set first node
+		file_ref->free = DEFAULT_ROOT; // start of free
 	} else {
 		if (memcmp((char*)r->base, "RUNIC", HEADER_SIZE) != 0) {
 			runic_close(*r);
@@ -124,7 +125,8 @@ void runic_close(runic_t r) { // closes the file
 runic_obj_t runic_root(runic_t r) { // returns root node
 	// check for errors
 	runic_obj_t ro;
-	ro.offset = ((runic_file_t*)r.base)->root;
+	runic_file_t* file_ref = (runic_file_t*)r.base;
+	ro.offset = file_ref->root;
 	ro.base = r.base;
 	return ro;
 }
@@ -132,10 +134,12 @@ runic_obj_t runic_root(runic_t r) { // returns root node
 //// node
 runic_obj_ty_t runic_obj_ty(runic_obj_t ro) { // returns type of target object
 	// check for errors
-	if (((runic_obj_atom_t*)(ro.base + ro.offset))->tag) {
+	runic_obj_atom_t* atom_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	runic_obj_node_t* node_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+	if (atom_ref->tag) {
 		return ATOM;
 	}
-	if (!((runic_obj_node_t*)(ro.base + ro.offset))->tag) {
+	if (!node_ref->tag) {
 		return NODE;
 	}
 	return (runic_obj_ty_t)NULL;
@@ -144,7 +148,8 @@ runic_obj_ty_t runic_obj_ty(runic_obj_t ro) { // returns type of target object
 runic_obj_t runic_node_left(runic_obj_t ro) {
 	// check for errors
 	runic_obj_t ret;
-	ret.offset = ((runic_obj_node_t*)(ro.base + ro.offset))->left;
+	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+	ret.offset = obj_ref->left;
 	ret.base = ro.base;
 	return ret;
 }
@@ -152,7 +157,8 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 runic_obj_t runic_node_right(runic_obj_t ro) {
 	// check for errors
 	runic_obj_t ret;
-	ret.offset = ((runic_obj_node_t*)(ro.base + ro.offset))->right;
+	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+	ret.offset = obj_ref->right;
 	ret.base = ro.base;
 	return ret;
 }
@@ -160,13 +166,15 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 //// atom
 size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 	// check for errors
-	return ((runic_obj_atom_t*)(ro.base + ro.offset))->tag;
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	return obj_ref->tag;
 }
 
 const char* runic_atom_read(runic_obj_t ro) { // returns atom value
 	size_t sz = runic_atom_size(ro);
 	char* c = (char*)malloc(sizeof(c) * sz);
-	memcpy(c, (&((runic_obj_atom_t*)(ro.base + ro.offset))->value), sz);
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	memcpy(c, &obj_ref->value, sz);
 	return c;
 }
 
@@ -175,44 +183,65 @@ const char* runic_atom_read(runic_obj_t ro) { // returns atom value
 void runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
 	// bool stat = false;
 	// check for errors
-	((runic_file_t*)r->base)->root = ro.offset;
+	runic_file_t* file_ref = (runic_file_t*)r->base;
+	file_ref->root = ro.offset;
 	return;
 }
 
 bool ___calc_remaing_space(runic_t r) {
 	bool stat = false;
 	uint64_t free, file_size;
-	free = ((runic_file_t*)r.base)->free;
+	runic_file_t* file_ref = (runic_file_t*)r.base;
+	free = file_ref->free;
 	file_size = r.sb.st_size;
 	if ((free + sizeof(runic_obj_node_t)) < file_size) {
 		stat = true;
 	}
 	return stat;
+} 
+
+int ___garbage_collect()
+{
+	int freed = 0;
+	return freed;
+}
+
+bool ___expand_file()
+{
+	bool stat = false;
+	return stat;
 }
 
 runic_obj_t runic_alloc_node(runic_t* r) { // returns null on failure, otherwise addr
 	runic_obj_t ro;
+	runic_file_t* file_ref = (runic_file_t*)r->base;
+	runic_obj_node_t* obj_ref;
 	// do some checks for invalid object
 	if (___calc_remaing_space(*r)) {
 		ro.base = r->base;
-		ro.offset = ((runic_file_t*)r->base)->free;
-		((runic_file_t*)r->base)->free += sizeof(runic_obj_node_t);
-		((runic_obj_node_t*)(r->base + ro.offset))->tag = NODE_TAG_VALUE;
-		((runic_obj_node_t*)(r->base + ro.offset))->left = (uint64_t)NULL;
-		((runic_obj_node_t*)(r->base + ro.offset))->right = (uint64_t)NULL;
+		ro.offset = file_ref->free;
+		file_ref->free += sizeof(runic_obj_node_t);
+		obj_ref = (runic_obj_node_t*)(r->base + ro.offset);
+		obj_ref->tag = NODE_TAG_VALUE;
+		obj_ref->left = (uint64_t)NULL;
+		obj_ref->right = (uint64_t)NULL;
 		return ro;
 	} else {
-		perror("Not enough space.\n");
-		exit(1);
-		// TODO: Change this to garbage collect, attempt again.
-		// If gc fails to create enough space, then un-map, add space, remap.
+		if (!___garbage_collect()) {
+			if (!___expand_file()) {
+				perror("Not enough space.\n");
+				exit(1);
+			}
+		}
+		return ro = runic_alloc_node(r);
 	}
 }
 
 bool ___calc_remaing_space_atom(runic_t r, size_t size) {
 	bool stat = false;
 	uint64_t free, file_size;
-	free = ((runic_file_t*)r.base)->free;
+	runic_file_t* file_ref = (runic_file_t*)r.base;
+	free = file_ref->free;
 	file_size = r.sb.st_size;
 	if ((free + size + sizeof(uint8_t)) < file_size) {
 		stat = true;
@@ -222,22 +251,25 @@ bool ___calc_remaing_space_atom(runic_t r, size_t size) {
 
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
 	runic_obj_t ro;
+	runic_file_t* file_ref = (runic_file_t*)r->base;
+	runic_obj_atom_t* obj_ref;
 	// do some checks for invalid size (negative, greater than 255)
 	// do some checks for invalid object
-	if (___calc_remaing_space_atom(*r, sz))
-	{
+	if (___calc_remaing_space_atom(*r, sz)) {
 		ro.base = r->base;
-		ro.offset = ((runic_file_t*)r->base)->free;
-		((runic_file_t*)r->base)->free += (sz + sizeof(uint8_t));
-		((runic_obj_atom_t*)(r->base + ro.offset))->tag = sz;
+		ro.offset = file_ref->free;
+		file_ref->free += (sz + sizeof(uint8_t));
+		obj_ref = (runic_obj_atom_t*)(r->base + ro.offset);
+		obj_ref->tag = sz;
 		return ro;
-	}
-    else
-    {
-        perror("Not enough space.\n");
-        exit(1);
-		// TODO: Change this to garbage collect, attempt again.
-		// If gc fails to create enough space, then un-map, add space, remap.
+	} else {
+		if (!___garbage_collect()) {
+			if (!___expand_file()) {
+				perror("Not enough space.\n");
+				exit(1);
+			}
+		}
+		return ro = runic_alloc_node(r);
 	}
 }
 
@@ -253,18 +285,21 @@ runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
 //// node
 void runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
 	// do some checks
-	((runic_obj_node_t*)(parent->base + parent->offset))->left = child.offset;
+	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
+	parent_ref->left = child.offset;
 }
 void runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
 	// do some checks
-	((runic_obj_node_t*)(parent->base + parent->offset))->right = child.offset;
+	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
+	parent_ref->right = child.offset;
 }
 
 //// atom
 void runic_atom_write(runic_obj_t* ro, const char* val) {
 	// do some checks for value size, as we dont want to overwrite
 	size_t sz = runic_atom_size(*ro);
-	memcpy((&((runic_obj_atom_t*)(ro->base + ro->offset))->value), val, sz);
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro->base + ro->offset);
+	memcpy(&obj_ref->value, val, sz);
 	return;
 }
 
