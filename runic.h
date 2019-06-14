@@ -20,9 +20,6 @@
 // constants
 #define DEFAULT_ROOT 0x15
 #define HEADER_SIZE 0x05
-#define NODE_SIZE 0x11
-#define TAG_SIZE 0x01
-#define POINTER_SIZE 0x08
 #define NODE_TAG_VALUE 0x00
 
 // enums

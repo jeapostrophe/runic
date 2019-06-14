@@ -37,7 +37,7 @@ typedef struct runic_obj_node {
 
 typedef struct runic_obj_atom {
 	uint8_t tag; // 1 byte, value is n < 255
-	char* value; // 1 * n bytes
+	char value; // 1 * n bytes
 } runic_obj_atom_t;
 
 // accessors
@@ -141,10 +141,10 @@ runic_obj_t runic_root(runic_t r) { // returns root node
 //// node
 runic_obj_ty_t runic_obj_ty(runic_obj_t ro) { // returns type of target object
 	// check for errors
-	if (((runic_obj_atom_t*)ro.base + ro.offset)->tag) {
+	if (((runic_obj_atom_t*)(ro.base + ro.offset))->tag) {
 		return ATOM;
 	}
-	if (!((runic_obj_node_t*)ro.base + ro.offset)->tag) {
+	if (!((runic_obj_node_t*)(ro.base + ro.offset))->tag) {
 		return NODE;
 	}
 	return (runic_obj_ty_t)NULL;
@@ -153,7 +153,7 @@ runic_obj_ty_t runic_obj_ty(runic_obj_t ro) { // returns type of target object
 runic_obj_t runic_node_left(runic_obj_t ro) {
 	// check for errors
 	runic_obj_t ret;
-	ret.offset = ((runic_obj_node_t*)ro.base + ro.offset)->left;
+	ret.offset = ((runic_obj_node_t*)(ro.base + ro.offset))->left;
 	ret.base = ro.base;
 	return ret;
 }
@@ -161,7 +161,7 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 runic_obj_t runic_node_right(runic_obj_t ro) {
 	// check for errors
 	runic_obj_t ret;
-	ret.offset = ((runic_obj_node_t*)ro.base + ro.offset)->right;
+	ret.offset = ((runic_obj_node_t*)(ro.base + ro.offset))->right;
 	ret.base = ro.base;
 	return ret;
 }
@@ -169,13 +169,13 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 //// atom
 size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 	// check for errors
-	return ((runic_obj_atom_t*)ro.base + ro.offset)->tag;
+	return ((runic_obj_atom_t*)(ro.base + ro.offset))->tag;
 }
 
 const char* runic_atom_read(runic_obj_t ro) { // returns atom value
 	size_t sz = runic_atom_size(ro);
 	char* c = (char*)malloc(sizeof(c) * sz);
-	memcpy(c, (&((runic_obj_atom_t*)ro.base + ro.offset)->tag + TAG_SIZE), sz);
+	memcpy(c, (&((runic_obj_atom_t*)(ro.base + ro.offset))->value), sz);
 	return c;
 }
 
@@ -193,7 +193,7 @@ bool ___calc_remaing_space(runic_t r) {
 	uint64_t free, file_size;
 	free = ((runic_file_t*)r.base)->free;
 	file_size = r.sb.st_size;
-	if ((free + NODE_SIZE) < file_size) {
+	if ((free + sizeof(runic_obj_node_t)) < file_size) {
 		stat = true;
 	}
 	return stat;
@@ -205,10 +205,10 @@ runic_obj_t runic_alloc_node(runic_t* r) { // returns null on failure, otherwise
 	if (___calc_remaing_space(*r)) {
 		ro.base = r->base;
 		ro.offset = ((runic_file_t*)r->base)->free;
-		((runic_file_t*)r->base)->free += NODE_SIZE;
-		((runic_obj_node_t*)r->base + ro.offset)->tag = NODE_TAG_VALUE;
-		((runic_obj_node_t*)r->base + ro.offset)->left = (uint64_t)NULL;
-		((runic_obj_node_t*)r->base + ro.offset)->right = (uint64_t)NULL;
+		((runic_file_t*)r->base)->free += sizeof(runic_obj_node_t);
+		((runic_obj_node_t*)(r->base + ro.offset))->tag = NODE_TAG_VALUE;
+		((runic_obj_node_t*)(r->base + ro.offset))->left = (uint64_t)NULL;
+		((runic_obj_node_t*)(r->base + ro.offset))->right = (uint64_t)NULL;
 		return ro;
 	} else {
 		perror("Not enough space.\n");
@@ -223,7 +223,7 @@ bool ___calc_remaing_space_atom(runic_t r, size_t size) {
 	uint64_t free, file_size;
 	free = ((runic_file_t*)r.base)->free;
 	file_size = r.sb.st_size;
-	if ((free + size + TAG_SIZE) < file_size) {
+	if ((free + size + sizeof(uint8_t)) < file_size) {
 		stat = true;
 	}
 	return stat;
@@ -237,8 +237,8 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
 	{
 		ro.base = r->base;
 		ro.offset = ((runic_file_t*)r->base)->free;
-		((runic_file_t*)r->base)->free += (sz + TAG_SIZE);
-		((runic_obj_atom_t*)r->base + ro.offset)->tag = sz;
+		((runic_file_t*)r->base)->free += (sz + sizeof(uint8_t));
+		((runic_obj_atom_t*)(r->base + ro.offset))->tag = sz;
 		return ro;
 	}
     else
@@ -262,18 +262,18 @@ runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
 //// node
 void runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
 	// do some checks
-	((runic_obj_node_t*)parent->base + parent->offset)->left = child.offset;
+	((runic_obj_node_t*)(parent->base + parent->offset))->left = child.offset;
 }
 void runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
 	// do some checks
-	((runic_obj_node_t*)parent->base + parent->offset)->right = child.offset;
+	((runic_obj_node_t*)(parent->base + parent->offset))->right = child.offset;
 }
 
 //// atom
 void runic_atom_write(runic_obj_t* ro, const char* val) {
 	// do some checks for value size, as we dont want to overwrite
 	size_t sz = runic_atom_size(*ro);
-	memcpy((&((runic_obj_atom_t*)ro->base + ro->offset)->tag + TAG_SIZE), val, sz);
+	memcpy((&((runic_obj_atom_t*)(ro->base + ro->offset))->value), val, sz);
 	return;
 }
 
