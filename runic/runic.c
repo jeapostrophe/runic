@@ -8,7 +8,7 @@
 
 // dependencies
 #include <stdio.h> // perror
-#include <stdlib.h> // exit
+#include <stdlib.h> // exit, malloc
 #include <stdbool.h> // bool
 #include <string.h> // memcmp, memcpy
 #include <fcntl.h> // open flags
@@ -41,31 +41,32 @@ typedef struct runic_obj_atom {
 
 // accessors
 //// file
-void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
+bool ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 	int share_flags, int prot_flags, int map_mode)
 {
 	runic_file_t* file_ref;
+	bool stat = false;
 	if ((r->fd = open(path, open_flags, share_flags)) == -1) {
 		perror("File open failed.\n");
-		exit(1);
+		return stat;
 	}
 	if (fstat(r->fd, &r->sb) == -1) {
 		close(r->fd);
 		perror("File access corrupted, couldn't get filesize.\n");
-		exit(1);
+		return stat;
 	}
 	if ((r->base = mmap(NULL, (r->sb.st_size ? r->sb.st_size : 1), // arg 2 != 0
 		prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) // creates file & map
 	{
 		close(r->fd);
 		perror("Mmap failed.\n");
-		exit(1);
+		return stat;
 	}
-	if (open_flags & O_CREAT) { // generates file space
+	if ((open_flags & O_CREAT) || (r->sb.st_size < sysconf(_SC_PAGESIZE))) { // generates file space
 		runic_close(*r); // close mmap and file
 		if ((r->fd = open(path, open_flags, share_flags)) == -1) { // reopen
 			perror("File open failed.\n");
-			exit(1);
+			return stat;
 		}
 		write(r->fd, "\0", sysconf(_SC_PAGESIZE)); // write into file (4K)
 		if ((r->base = mmap(NULL, sysconf(_SC_PAGESIZE), // mmap file (4K)
@@ -73,10 +74,14 @@ void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 		{
 			close(r->fd);
 			perror("Mmap failed.\n");
-			exit(1);
+			return stat;
 		}
 		file_ref = (runic_file_t*)r->base;
-		fstat(r->fd, &r->sb); // stat file (should be 4K)
+		if (fstat(r->fd, &r->sb) == -1) {
+			close(r->fd);
+			perror("File access corrupted, couldn't get filesize.\n");
+			return stat;
+		}
 		memcpy((char*)r->base, "RUNIC", HEADER_SIZE); // insert magic number and return
 		file_ref->root = (uint64_t)NULL; // set first node
 		file_ref->free = DEFAULT_ROOT; // start of free
@@ -84,80 +89,116 @@ void ___runic_open_on_args(runic_t* r, const char* path, int open_flags,
 		if (memcmp((char*)r->base, "RUNIC", HEADER_SIZE) != 0) {
 			runic_close(*r);
 			perror("File is not a runic file.\n");
-			exit(1);
+			return stat;
 		}
 	}
-	// TODO: handle errors better than exit(1)
+	return stat = true;
 }
 
-runic_t runic_open(const char* path, int mode) { // returns null on failure, otherwise returns the runic
-	runic_t r;
-	// do some checks for invalid path or mode
+runic_t runic_open(const char* path, int mode) {
+	runic_t r, r_null;
+	r_null.base = NULL;
 	switch (mode) {
 	case READONLY:
-		___runic_open_on_args(&r, path, O_RDONLY,
-			S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE);
-			// Permissions: r-- r-- r--
+		if (!___runic_open_on_args(&r, path, O_RDONLY,
+			S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE)) {
+			return r_null;
+		}
 		break;
 	case READWRITE:
-		___runic_open_on_args(&r, path, O_RDWR,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
-			// Permissions: rw- r-- r--
+		if (!___runic_open_on_args(&r, path, O_RDWR,
+			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+			return r_null;
+		}
 		break;
 	case CREATEWRITE:
 	default:
-		___runic_open_on_args(&r, path, O_RDWR | O_CREAT,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED);
-			// Permissions: rw- r-- r-- (Create)
+		if (!___runic_open_on_args(&r, path, O_RDWR | O_CREAT,
+			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+			return r_null;
+		}
 		break;
 	}
 	return r;
 }
 
-void runic_close(runic_t r) { // closes the file
-	// bool stat = false;
-	// do some checks for invalid object
+bool runic_close(runic_t r) {
+	bool stat = false;
+	if (r.base == NULL)
+	{
+		perror("Invalid runic_t object.\n");
+		return stat;
+	}
 	munmap(r.base, r.sb.st_size);
 	close(r.fd);
-	return;
+	return stat = true;
 }
 
-runic_obj_t runic_root(runic_t r) { // returns root node
-	// check for errors
+runic_obj_t runic_root(runic_t r) {
 	runic_obj_t ro;
 	runic_file_t* file_ref = (runic_file_t*)r.base;
-	ro.offset = file_ref->root;
-	ro.base = r.base;
-	return ro;
+	if (r.base == NULL) {
+		perror("Invalid runic_t object.\n");
+		ro.base = NULL;
+		ro.offset = -1;
+		return ro;
+	}
+	if (file_ref->root == (uint64_t)NULL) {
+		perror("No root exists for this file.\n");
+		ro.base = NULL;
+		ro.offset = -1;
+		return ro;
+	} else {
+		ro.offset = file_ref->root;
+		ro.base = r.base;
+		return ro;
+	}
 }
 
 //// node
-runic_obj_ty_t runic_obj_ty(runic_obj_t ro) { // returns type of target object
-	// check for errors
-	runic_obj_atom_t* atom_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
-	runic_obj_node_t* node_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+runic_obj_ty_t runic_obj_ty(runic_obj_t ro) {
+	runic_obj_atom_t* atom_ref;
+	runic_obj_node_t* node_ref;
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		perror("Invalid runic_obj_t object.\n");
+		return -1;
+	}
+	atom_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	node_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	if (atom_ref->tag) {
 		return ATOM;
 	}
 	if (!node_ref->tag) {
 		return NODE;
 	}
-	return (runic_obj_ty_t)NULL;
+	return (-1); // we shouldn't ever get here, but if we do, something is wrong.
 }
 
 runic_obj_t runic_node_left(runic_obj_t ro) {
-	// check for errors
 	runic_obj_t ret;
-	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+	runic_obj_node_t* obj_ref;
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		perror("Invalid runic_obj_t object.\n");
+		ret.base = NULL;
+		ret.offset = -1;
+		return ret;
+	}
+	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	ret.offset = obj_ref->left;
 	ret.base = ro.base;
 	return ret;
 }
 
 runic_obj_t runic_node_right(runic_obj_t ro) {
-	// check for errors
 	runic_obj_t ret;
-	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
+	runic_obj_node_t* obj_ref;
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		perror("Invalid runic_obj_t object.\n");
+		ret.base = NULL;
+		ret.offset = -1;
+		return ret;
+	}
+	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	ret.offset = obj_ref->right;
 	ret.base = ro.base;
 	return ret;
@@ -165,27 +206,39 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 
 //// atom
 size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
-	// check for errors
-	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	runic_obj_atom_t* obj_ref;
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		perror("Invalid runic_obj_t object.\n");
+		return -1;
+	}
+	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
 	return obj_ref->tag;
 }
 
-const char* runic_atom_read(runic_obj_t ro) { // returns atom value
+bool runic_atom_read(runic_obj_t ro, char* c) { // returns atom value
+	bool stat = false;
 	size_t sz = runic_atom_size(ro);
-	char* c = (char*)malloc(sizeof(c) * sz);
-	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	runic_obj_atom_t* obj_ref;
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT || c == NULL) {
+		perror("Invalid runic_obj_t object or char pointer.\n");
+		return stat;
+	}
+	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
 	memcpy(c, &obj_ref->value, sz);
-	return c;
+	return stat = true;
 }
 
 // mutators
 //// file
-void runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
-	// bool stat = false;
-	// check for errors
+bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
+	bool stat = false;
 	runic_file_t* file_ref = (runic_file_t*)r->base;
+	if (r->base == NULL || ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		perror("Invalid runic_obj_t or runic_t object.\n");
+		return stat;
+	}
 	file_ref->root = ro.offset;
-	return;
+	return stat = true;
 }
 
 bool ___calc_remaing_space(runic_t r) {
@@ -200,23 +253,26 @@ bool ___calc_remaing_space(runic_t r) {
 	return stat;
 } 
 
-int ___garbage_collect()
-{
+int ___garbage_collect() {
 	int freed = 0;
 	return freed;
 }
 
-bool ___expand_file()
-{
+bool ___expand_file() {
 	bool stat = false;
 	return stat;
 }
 
-runic_obj_t runic_alloc_node(runic_t* r) { // returns null on failure, otherwise addr
+runic_obj_t runic_alloc_node(runic_t* r) {
 	runic_obj_t ro;
 	runic_file_t* file_ref = (runic_file_t*)r->base;
 	runic_obj_node_t* obj_ref;
-	// do some checks for invalid object
+	if (r->base == NULL) {
+		perror("Invalid runic_t object.\n");
+		ro.base = NULL;
+		ro.offset = -1;
+		return ro;
+	}
 	if (___calc_remaing_space(*r)) {
 		ro.base = r->base;
 		ro.offset = file_ref->free;
@@ -227,10 +283,12 @@ runic_obj_t runic_alloc_node(runic_t* r) { // returns null on failure, otherwise
 		obj_ref->right = (uint64_t)NULL;
 		return ro;
 	} else {
-		if (!___garbage_collect()) {
+		if (___garbage_collect() < sizeof(runic_obj_node_t)) {
 			if (!___expand_file()) {
 				perror("Not enough space.\n");
-				exit(1);
+				ro.base = NULL;
+				ro.offset = -1;
+				return ro;
 			}
 		}
 		return ro = runic_alloc_node(r);
@@ -249,12 +307,16 @@ bool ___calc_remaing_space_atom(runic_t r, size_t size) {
 	return stat;
 }
 
-runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
+runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 	runic_obj_t ro;
 	runic_file_t* file_ref = (runic_file_t*)r->base;
 	runic_obj_atom_t* obj_ref;
-	// do some checks for invalid size (negative, greater than 255)
-	// do some checks for invalid object
+	if (r->base == NULL || sz < 0 || sz > 255) {
+		perror("Invalid runic_t object or size parameter.\n");
+		ro.base = NULL;
+		ro.offset = -1;
+		return ro;
+	}
 	if (___calc_remaing_space_atom(*r, sz)) {
 		ro.base = r->base;
 		ro.offset = file_ref->free;
@@ -263,10 +325,12 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {  // returns null on fail
 		obj_ref->tag = sz;
 		return ro;
 	} else {
-		if (!___garbage_collect()) {
+		if (___garbage_collect() < (sz + sizeof(uint8_t))) {
 			if (!___expand_file()) {
 				perror("Not enough space.\n");
-				exit(1);
+				ro.base = NULL;
+				ro.offset = -1;
+				return ro;
 			}
 		}
 		return ro = runic_alloc_node(r);
@@ -283,24 +347,45 @@ runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
 }
 
 //// node
-void runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
-	// do some checks
+bool runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
+	bool stat = false;
+	if (parent->base == NULL || parent->offset < DEFAULT_ROOT
+		|| child.base == NULL || child.offset < DEFAULT_ROOT)
+	{
+		perror("Invalid runic_obj_t object.\n");
+		return stat;
+	}
 	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
 	parent_ref->left = child.offset;
+	return stat = true;
 }
-void runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
-	// do some checks
+bool runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
+	bool stat = false;
+	if (parent->base == NULL || parent->offset < DEFAULT_ROOT
+		|| child.base == NULL || child.offset < DEFAULT_ROOT)
+	{
+		perror("Invalid runic_obj_t object.\n");
+		return stat;
+	}
 	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
 	parent_ref->right = child.offset;
+	return stat = true;
 }
 
 //// atom
-void runic_atom_write(runic_obj_t* ro, const char* val) {
-	// do some checks for value size, as we dont want to overwrite
-	size_t sz = runic_atom_size(*ro);
-	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro->base + ro->offset);
+bool runic_atom_write(runic_obj_t* ro, const char* val) {
+	size_t sz;
+	bool stat = false;
+	runic_obj_atom_t* obj_ref;
+	if (ro->base == NULL || ro->offset < DEFAULT_ROOT || val == NULL)
+	{
+		perror("Invalid runic_obj_t object or char pointer.\n");
+		return stat;
+	}
+	obj_ref  = (runic_obj_atom_t*)(ro->base + ro->offset);
+	sz = runic_atom_size(*ro);
 	memcpy(&obj_ref->value, val, sz);
-	return;
+	return stat = true;
 }
 
 // closing statements

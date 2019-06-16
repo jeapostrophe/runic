@@ -1,13 +1,13 @@
 #include <iostream>
 #include <cstring>
-#include "runic.h"
+#include "../runic/runic.h"
 
 using namespace std;
 
 int main(void)
 {
-	auto r = runic_open("example2.runic", CREATEWRITE);
-	char* c;
+	auto r = runic_open("../runic_files/example2.runic", CREATEWRITE);
+	char c[256];
 	runic_obj_t ra;
 	runic_obj_t rn2;
 	runic_obj_t rn;
@@ -46,10 +46,9 @@ int main(void)
     if (rn.base == ro2.base) {
         printf("pass test 8\n");
     }
-	c = (char*)runic_atom_read(ra);
+	runic_atom_read(ra, c);
     printf("%lu ,", runic_atom_size(ra));
     printf(" %s\n" , c);
-	free(c);
 	runic_close(r);
 	return 0;
 }

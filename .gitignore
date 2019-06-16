@@ -1,8 +1,13 @@
 *~
 \#*
 .\#*
+#macOS artifacts
 .DS_Store
+#vscode artifacts
 /.vscode/*
+#object files
 *.o
-compiled
-test
+#executables
+*.e
+#runic files
+*.runic

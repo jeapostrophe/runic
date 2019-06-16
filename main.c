@@ -1,9 +1,8 @@
 #include <stdio.h>
-#include <unistd.h>
+#include "runic/runic.h"
 
 int main(int argc, char* argv[])
 {
-	long sz = sysconf(_SC_PAGESIZE);
-	printf("%ld", sz);
+
 	return 0;
 }
