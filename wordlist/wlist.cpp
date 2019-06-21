@@ -64,10 +64,7 @@ int lookup_next_val(runic_t r, const char* value)
 			runic_atom_read(ra, c); // deposit string into c
 			if (strcmp(value, c)) { // if the strings match
 				loc = ra.offset; // get the loc
-				free(c); // free c
 				return loc; // return loc
-			} else {
-				free(c); // else free c
 			}
 		} while (next.offset >= DEFAULT_ROOT); // stop when next is null
 	} 
@@ -77,7 +74,6 @@ int lookup_next_val(runic_t r, const char* value)
 		{
 			loc = current.offset;
 		}
-		free(c);
 	}
 	return loc;
 }
