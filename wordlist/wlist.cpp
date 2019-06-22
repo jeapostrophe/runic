@@ -1,6 +1,7 @@
 #include <iostream>
-#include "../runic/runic.h"
-#include "wlist.h"
+#include <string.h> // memcmp
+#include "../runic/runic.h" // runic
+#include "wlist.h" // wlist
 
 using namespace std;
 
@@ -22,7 +23,7 @@ int insert_next_val(runic_t* r, const char* value)
 			current = next; // make nodes equal
 			next = runic_node_right(current); // get the next node
 		} while (next.offset >= DEFAULT_ROOT); // stop when next is null
-		next = runic_alloc_node(r); // make a new node in memorty
+		next = runic_alloc_node(r); // make a new node in memory
 		runic_node_set_right(&current, next); // attach it to current
 		ra = runic_alloc_atom_str(r, value); // make a new string
 		runic_node_set_left(&next, ra); // attach it to next
@@ -62,7 +63,7 @@ int lookup_next_val(runic_t r, const char* value)
 			next = runic_node_right(current); // get the next node
 			ra = runic_node_left(current); // check its string
 			runic_atom_read(ra, c); // deposit string into c
-			if (strcmp(value, c)) { // if the strings match
+			if (memcmp(value, c, runic_atom_size(ra)) == 0) { // if the strings match
 				loc = ra.offset; // get the loc
 				return loc; // return loc
 			}
@@ -70,7 +71,7 @@ int lookup_next_val(runic_t r, const char* value)
 	} 
 	else if (ans == ATOM) { // if the root node is a string then lets find out what it is
 		runic_atom_read(current, c); // deposit string into c
-		if (strcmp(value, c))
+		if (memcmp(value, c, runic_atom_size(ra)) == 0)
 		{
 			loc = current.offset;
 		}
