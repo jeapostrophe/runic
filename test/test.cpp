@@ -6,7 +6,7 @@ using namespace std;
 
 int main(void)
 {
-	auto r = runic_open("../runic_files/example2.runic", CREATEWRITE);
+	auto r = runic_open("runic_files/example2.runic", CREATEWRITE);
 	char c[256];
 	runic_obj_t ra;
 	runic_obj_t rn2;

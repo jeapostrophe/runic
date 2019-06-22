@@ -8,14 +8,12 @@
 
 // dependencies
 #include <stdio.h> // perror
-#include <stdint.h> // uintXX_t
-#include <stdbool.h> // bool
 #include <string.h> // memcmp, memcpy, strlen
 #include <fcntl.h> // open flags
 #include <unistd.h> // close, sysconf
-#include <sys/stat.h> // open, fstat
 #include <sys/mman.h> // mmap, munmap, map flags
 #include "runic.h" // runic
+// additional dependencies can be found in runic.h
 
 // preprocessor statements
 #pragma pack(push)

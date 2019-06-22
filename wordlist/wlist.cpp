@@ -1,5 +1,5 @@
 #include <iostream>
-#include <cstring> // memcmp
+#include <cstring> // memcmp, strlen
 #include "../runic/runic.h" // runic
 #include "wlist.h" // wlist
 
@@ -63,7 +63,7 @@ int lookup_next_val(runic_t r, const char* value)
 			next = runic_node_right(current); // get the next node
 			ra = runic_node_left(current); // check its string
 			runic_atom_read(ra, c); // deposit string into c
-			if (memcmp(value, c, runic_atom_size(ra)) == 0) { // if the strings match
+			if (memcmp(value, c, strlen(value)) == 0) { // if the strings match
 				loc = ra.offset; // get the loc
 				return loc; // return loc
 			}
@@ -71,7 +71,7 @@ int lookup_next_val(runic_t r, const char* value)
 	} 
 	else if (ans == ATOM) { // if the root node is a string then lets find out what it is
 		runic_atom_read(current, c); // deposit string into c
-		if (memcmp(value, c, runic_atom_size(ra)) == 0)
+		if (memcmp(value, c, strlen(value)) == 0)
 		{
 			loc = current.offset;
 		}

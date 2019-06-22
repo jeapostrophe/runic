@@ -9,7 +9,7 @@
 // dependencies
 #include <stdbool.h> // bool
 #include <stdint.h> // uintXX_t
-#include <sys/stat.h> // struct stat
+#include <sys/stat.h> // struct stat, open, fstat
 
 // preprocessor statements
 #ifndef RUNIC_H
