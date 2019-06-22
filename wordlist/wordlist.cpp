@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstring> // memcmp
 #include <unistd.h> // access
 #include "../runic/runic.h"  // runic
 #include "wlist.h" // wlist

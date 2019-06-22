@@ -1,5 +1,5 @@
 #include <iostream>
-#include <string.h> // memcmp
+#include <cstring> // memcmp
 #include "../runic/runic.h" // runic
 #include "wlist.h" // wlist
 

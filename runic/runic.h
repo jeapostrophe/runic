@@ -8,6 +8,7 @@
 
 // dependencies
 #include <stdbool.h> // bool
+#include <stdint.h> // uintXX_t
 #include <sys/stat.h> // struct stat
 
 // preprocessor statements
