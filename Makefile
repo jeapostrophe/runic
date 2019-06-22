@@ -4,7 +4,7 @@ CFLAGS = -Wall -Werror -pedantic --std=c11 -g --debug
 CPPFLAGS = -Wall -Werror -pedantic --std=c++11 -g --debug
 RUNIC_OBJECTS = runic/runic.o
 TEST_OBJECTS = test.e test/test.o
-MAIN_OBJECTS = compiled main.o
+MAIN_OBJECTS = main.e main.o
 WORDLIST_OBJECTS = wordlist.e wordlist/wordlist.o wordlist/wlist.o
 
 ALL: test.e wordlist.e
