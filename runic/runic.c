@@ -122,8 +122,7 @@ runic_t runic_open(const char* path, int mode) {
 
 bool runic_close(runic_t r) {
 	bool stat = false;
-	if (r.base == NULL)
-	{
+	if (r.base == NULL) {
 		perror("Invalid runic_t object.\n");
 		return stat;
 	}
@@ -375,8 +374,7 @@ bool runic_atom_write(runic_obj_t* ro, const char* val) {
 	size_t sz;
 	bool stat = false;
 	runic_obj_atom_t* obj_ref;
-	if (ro->base == NULL || ro->offset < DEFAULT_ROOT || val == NULL)
-	{
+	if (ro->base == NULL || ro->offset < DEFAULT_ROOT || val == NULL) {
 		perror("Invalid runic_obj_t object or char pointer.\n");
 		return stat;
 	}
