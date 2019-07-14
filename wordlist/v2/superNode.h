@@ -29,7 +29,7 @@ public:
 	~superNode();
 
 private:
-	runic_obj_t super_node, atom, child_carrier;
+	runic_obj_t super_node, atom, children;
 	bool isempty; // variable for empty (meaningless) superNodes
 	int balance_factor;
 	superNode(runic_obj_t node); // generates a super node from existing node data in file
@@ -42,13 +42,13 @@ private:
 	All accessors and mutators therefore need to make nested calls.
 	We modify every other node to manipulate the overall tree,
 	but not the individual tree layers upon which the atom resides.
-			... ^ predecessors
-		  s_Node (L)	...		s_Node (R)
-			/ \					...
-	   child   Atom				...
-		/   \
- s_Node(L)  s_Node(R)
-   ...		...  V successors
+            ... ^ predecessors
+          s_Node (L)    ...    s_Node (R)
+           /   \                 ...
+       child   Atom              ...
+       /   \
+ s_Node(L)   s_Node(R)
+   ...         ...   V successors
  */
 
 #endif /* superNode.h */
