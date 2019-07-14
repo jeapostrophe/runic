@@ -53,6 +53,7 @@ typedef struct runic_obj
 runic_t runic_open(const char* path, int mode); // returns null on failure, otherwise returns runic
 bool runic_close(runic_t r); // closes the file
 runic_obj_t runic_root(runic_t r); // returns root node
+uint64_t runic_free(runic_t r); // returns free space location
 
 //// node
 runic_obj_ty_t runic_obj_ty(runic_obj_t ro); // returns type of target object

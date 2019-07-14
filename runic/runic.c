@@ -137,19 +137,28 @@ runic_obj_t runic_root(runic_t r) {
 	if (r.base == NULL) {
 		perror("Invalid runic_t object.\n");
 		ro.base = NULL;
-		ro.offset = -1;
+		ro.offset = (uint64_t)NULL;
 		return ro;
 	}
 	if (file_ref->root == (uint64_t)NULL) {
 		perror("No root exists for this file.\n");
 		ro.base = NULL;
-		ro.offset = -1;
+		ro.offset = (uint64_t)NULL;
 		return ro;
 	} else {
 		ro.offset = file_ref->root;
 		ro.base = r.base;
 		return ro;
 	}
+}
+
+uint64_t runic_free(runic_t r) {
+	runic_file_t* file_ref = (runic_file_t*)r.base;
+	if (r.base == NULL) {
+		perror("Invalid runic_t object.\n");
+		return 0;
+	} else
+		return file_ref->free;
 }
 
 //// node
@@ -168,7 +177,7 @@ runic_obj_ty_t runic_obj_ty(runic_obj_t ro) {
 	if (!node_ref->tag) {
 		return NODE;
 	}
-	return (-1); // we shouldn't ever get here, but if we do, something is wrong.
+	return -1; // we shouldn't ever get here, but if we do, something is wrong.
 }
 
 runic_obj_t runic_node_left(runic_obj_t ro) {
@@ -177,7 +186,7 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		perror("Invalid runic_obj_t object.\n");
 		ret.base = NULL;
-		ret.offset = -1;
+		ret.offset = (uint64_t)NULL;
 		return ret;
 	}
 	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
@@ -192,7 +201,7 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		perror("Invalid runic_obj_t object.\n");
 		ret.base = NULL;
-		ret.offset = -1;
+		ret.offset = (uint64_t)NULL;
 		return ret;
 	}
 	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
@@ -206,7 +215,7 @@ size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 	runic_obj_atom_t* obj_ref;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		perror("Invalid runic_obj_t object.\n");
-		return -1;
+		return (uint64_t)NULL;
 	}
 	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
 	return obj_ref->tag;
@@ -267,7 +276,7 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 	if (r->base == NULL) {
 		perror("Invalid runic_t object.\n");
 		ro.base = NULL;
-		ro.offset = -1;
+		ro.offset = (uint64_t)NULL;
 		return ro;
 	}
 	if (__calc_remaing_space(*r)) {
@@ -284,7 +293,7 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 			if (!__expand_file()) {
 				perror("Not enough space.\n");
 				ro.base = NULL;
-				ro.offset = -1;
+				ro.offset = (uint64_t)NULL;
 				return ro;
 			}
 		}
@@ -311,7 +320,7 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 	if (r->base == NULL || sz < 0 || sz > 255) {
 		perror("Invalid runic_t object or size parameter.\n");
 		ro.base = NULL;
-		ro.offset = -1;
+		ro.offset = (uint64_t)NULL;
 		return ro;
 	}
 	if (__calc_remaing_space_atom(*r, sz)) {
@@ -326,7 +335,7 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 			if (!__expand_file()) {
 				perror("Not enough space.\n");
 				ro.base = NULL;
-				ro.offset = -1;
+				ro.offset = (uint64_t)NULL;
 				return ro;
 			}
 		}
@@ -380,8 +389,13 @@ bool runic_atom_write(runic_obj_t* ro, const char* val) {
 	}
 	obj_ref  = (runic_obj_atom_t*)(ro->base + ro->offset);
 	sz = runic_atom_size(*ro);
-	memcpy(&obj_ref->value, val, sz);
-	return stat = true;
+	if (sz <= strlen(val)) {
+		memcpy(&obj_ref->value, val, sz);
+		return stat = true;
+	} else {
+		perror("String size exceeds atom size.\n");
+		return stat;
+	}
 }
 
 // closing statements
