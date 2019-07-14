@@ -1,14 +1,9 @@
-CC = gcc
-CFLAGS = -Wall -Werror -pedantic --std=c11 -g --debug
-MAIN_OBJECTS = main.e main.o
+TOPTARGETS := all clean
 
-ALL: main.e
+SUBDIRS := runic test wordlist/v1 wordlist/v2
 
-main.e: main.o
-	$(CC) $(CFLAGS) -o main.e main.o runic/runic.o
+$(TOPTARGETS): $(SUBDIRS)
+$(SUBDIRS):
+	$(MAKE) -C $@ $(MAKECMDGOALS)
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c main.c -o main.o
-
-clean:
-	rm $(MAIN_OBJECTS)
+.PHONY: $(TOPTARGETS) $(SUBDIRS)

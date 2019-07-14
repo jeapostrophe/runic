@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include "runic/runic.h"
+#include "runic.h"
 
 int main(int argc, char* argv[])
 {

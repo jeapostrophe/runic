@@ -52,20 +52,11 @@ superNode::~superNode() {
 
 superNode superNode::left() {
 	runic_obj_t left = runic_node_left(child_carrier);
-	superNode none;
-	if (left.offset >= DEFAULT_ROOT && !isempty)	
-		return superNode(left);
-	else
-		return none;
-}
+        return superNode(left); }
 
 superNode superNode::right() {
 	runic_obj_t right = runic_node_right(child_carrier);
-	superNode none;
-	if (right.offset >= DEFAULT_ROOT && !isempty)	
-		return superNode(right);
-	else
-		return none;
+	return superNode(right);
 }
 
 string superNode::read() {

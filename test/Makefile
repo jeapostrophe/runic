@@ -1,14 +1,5 @@
-++ = g++
-CPPFLAGS = -Wall -Werror -pedantic --std=c++11 -g --debug
-TEST_OBJECTS = ../test.e test.o
+TARGET = test.e
+DEP_OBJS = ../runic/runic.o
+LDFLAGS = -lstdc++
 
-ALL: test.e
-
-test.e: test.o
-	$(++) $(CPPFLAGS) -lstdc++ -o ../test.e test.o ../runic/runic.o
-
-test.o: test.cpp
-	$(++) $(CPPFLAGS) -c test.cpp -o test.o
-
-clean:
-	rm $(TEST_OBJECTS)
+-include ../Makefile.shared
