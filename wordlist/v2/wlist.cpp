@@ -2,15 +2,13 @@
 #include <vector> // vector
 #include <cstring> // memcmp, strlen
 #include "wlist.h" // wlist
-#include "superNode.h" // superNode
 
 using namespace std;
 
-int insert_next_val(runic_t &r, string value) {
-	superNode node(r);
-	if (node.empty()) {
-		node = superNode(r, value);
-		return node.str_loc();
+int insert_next_val(runic_t &r, superNode node, string value) {
+	if (node.empty()){ // if no root exists
+		superNode newNode(r,value); // allocate one with this value
+		return newNode.str_loc(); // return it's location
 	}
 	
 	int dir = memcmp(node.read().c_str(), value.c_str(),
@@ -21,13 +19,14 @@ int insert_next_val(runic_t &r, string value) {
 	} else {
 		/* put in right side recursively */
 	}
-	return 0;
+	return -1;
 	/* balance tree */
 }
 
 void insert_item(runic_t &r, string value) {
 	int loc;
-	if ((loc = insert_next_val(r, value)) != -1) {
+	superNode node(r); // generate a potential superNode
+	if ((loc = insert_next_val(r, node, value)) != -1) { // fall through to find the correct location
 		printf("OK @ %d\n", loc);
 	} else {
 		// something got mal-formed
@@ -44,7 +43,7 @@ int lookup_next_val(superNode node, string value) {
 
 	if (dir == 0)
 		return node.str_loc();
-	else if (dir > 0)
+	else if (dir > 0) // not sure if these should be swapped
 		return lookup_next_val(node.left(), value);
 	else /* dir < 0 */
 		return lookup_next_val(node.right(), value);

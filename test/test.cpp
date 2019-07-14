@@ -7,7 +7,7 @@ using namespace std;
 int main(void)
 {
 	//// a very basic test that proves the runic api is working.
-	auto r = runic_open("runic_files/example2.runic", CREATEWRITE);
+	auto r = runic_open("../runic_files/example.runic", CREATEWRITE);
 	char c[256];
 	runic_obj_t ra, rn, rn2, ro1, ro2, ro3;
 	cout << r.sb.st_size << endl;

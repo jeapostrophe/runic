@@ -7,7 +7,7 @@
 ****/
 
 // dependencies
-#include <stddef.h>
+#include <stddef.h> // size_t
 #include <stdbool.h> // bool
 #include <stdint.h> // uintXX_t
 #include <sys/stat.h> // struct stat, open, fstat

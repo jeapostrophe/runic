@@ -13,12 +13,12 @@ public:
 	superNode(runic_t &r, string input); // allocs a super node in file space
 	superNode(runic_t &r); // returns the root super node in memory
 
-	superNode left(); // gives right child
-	superNode right(); // gives left child
-	string read(); // gives atom
-	int bf();	// returns current bf
-	bool empty(); // returns safety check on emptiness
-	int str_loc();
+	superNode left() const; // gives right child
+	superNode right() const; // gives left child
+	string read() const; // gives atom
+	int bf() const;	// returns current bf
+	bool empty() const; // returns safety check on emptiness
+	int str_loc() const;
 
 	bool set_bf(int new_bf);
 	bool set_left(superNode left); // attaches another super node to itself as child
