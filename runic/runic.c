@@ -7,6 +7,7 @@
 ****/
 
 // dependencies
+#include <stdlib.h> // exit
 #include <stdio.h> // perror
 #include <string.h> // memcmp, memcpy, strlen
 #include <fcntl.h> // open flags
@@ -177,7 +178,8 @@ runic_obj_ty_t runic_obj_ty(runic_obj_t ro) {
 	if (!node_ref->tag) {
 		return NODE;
 	}
-	return -1; // we shouldn't ever get here, but if we do, something is wrong.
+	perror("Operation critically failed, exiting...\n");
+	exit(1);
 }
 
 runic_obj_t runic_node_left(runic_obj_t ro) {

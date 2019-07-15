@@ -1,3 +1,14 @@
+# Runic: A file format for encoding Abstract Syntax Trees.
+
+# Contents:
+
+- [Abstract](#abstract)
+- [Tasks](#tasks)
+- [API](#api)
+- [Refined Example](#refined-example)
+- [File Format Details](#file-format-details)
+- [Implementation Sketch](#implementation-sketch)
+
 # Abstract:
 
 A file format for trees that can encode programs directly as ASTs. For
