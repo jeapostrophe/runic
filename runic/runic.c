@@ -118,6 +118,8 @@ runic_t runic_open(const char* path, int mode) {
 		}
 		break;
 	}
+	r.path = path;
+	r.mode = mode;
 	return r;
 }
 
@@ -266,9 +268,34 @@ int __garbage_collect() {
 	return freed;
 }
 
-bool __expand_file() {
+bool __expand_file(runic_t* r) {
 	bool stat = false;
-	return stat;
+	runic_file_t* file_ref;
+	int open_flags, share_flags, prot_flags, map_mode;
+	runic_close(*r); // close mmap and file
+	open_flags = O_RDWR | O_APPEND; // append to this file in read-write
+	share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	prot_flags = PROT_READ | PROT_WRITE;
+	map_mode = MAP_SHARED;
+	if ((r->fd = open(r->path, open_flags, share_flags)) == -1) { // reopen
+		perror("File open failed.\n");
+		return stat;
+	}
+	write(r->fd, "\0", r->sb.st_size); // write into file (this will double capacity)
+	if ((r->base = mmap(NULL, r->sb.st_size * 2, // mmap file with new, doubled size
+		prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) 
+	{
+		close(r->fd);
+		perror("Mmap failed.\n");
+		return stat;
+	}
+	file_ref = (runic_file_t*)r->base;
+	if (fstat(r->fd, &r->sb) == -1) {
+		close(r->fd);
+		perror("File access corrupted, couldn't get filesize.\n");
+		return stat;
+	}
+	return stat = true;
 }
 
 runic_obj_t runic_alloc_node(runic_t* r) {
@@ -291,8 +318,8 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 		obj_ref->right = (uint64_t)NULL;
 		return ro;
 	} else {
-		if (__garbage_collect() < sizeof(runic_obj_node_t)) {
-			if (!__expand_file()) {
+		if (__garbage_collect() < sizeof(runic_obj_node_t) && r->mode != READONLY) {
+			if (!__expand_file(r)) {
 				perror("Not enough space.\n");
 				ro.base = NULL;
 				ro.offset = (uint64_t)NULL;
@@ -333,8 +360,8 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 		obj_ref->tag = sz;
 		return ro;
 	} else {
-		if (__garbage_collect() < (sz + sizeof(uint8_t))) {
-			if (!__expand_file()) {
+		if (__garbage_collect() < (sz + sizeof(uint8_t)) && r->mode != READONLY) {
+			if (!__expand_file(r)) {
 				perror("Not enough space.\n");
 				ro.base = NULL;
 				ro.offset = (uint64_t)NULL;

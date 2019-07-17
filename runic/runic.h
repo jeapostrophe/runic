@@ -11,6 +11,7 @@
 #include <stdbool.h> // bool
 #include <stdint.h> // uintXX_t
 #include <sys/stat.h> // struct stat, open, fstat
+// see documentation for other necessary dependencies
 
 // preprocessor statements
 #ifndef RUNIC_H
@@ -25,59 +26,57 @@
 #define NODE_TAG_VALUE 0x00
 
 // enums
-enum runic_file_modes
-{
+enum runic_file_modes {
 	READONLY, READWRITE, CREATEWRITE
 };
 
-typedef enum runic_obj_ty
-{
+typedef enum runic_obj_ty {
 	NODE, ATOM
 } runic_obj_ty_t;
 
 // structs
-typedef struct runic
-{
+typedef struct runic {
 	int fd;
 	struct stat sb;
+	const char* path;
+	int mode;
 	uint8_t* base;
 } runic_t;
 
-typedef struct runic_obj
-{
+typedef struct runic_obj {
 	uint8_t* base;
 	uint64_t offset;
 } runic_obj_t;
-
+      
 // accessors
 //// file
-runic_t runic_open(const char* path, int mode); // returns null on failure, otherwise returns runic
-bool runic_close(runic_t r); // closes the file
-runic_obj_t runic_root(runic_t r); // returns root node
-uint64_t runic_free(runic_t r); // returns free space location
+runic_t runic_open(const char* path, int mode);
+bool runic_close(runic_t r);
+runic_obj_t runic_root(runic_t r);
+uint64_t runic_free(runic_t r);
 
 //// node
-runic_obj_ty_t runic_obj_ty(runic_obj_t ro); // returns type of target object
-runic_obj_t runic_node_left(runic_obj_t ro); // returns obj
-runic_obj_t runic_node_right(runic_obj_t ro); // returns obj
+runic_obj_ty_t runic_obj_ty(runic_obj_t ro);
+runic_obj_t runic_node_left(runic_obj_t ro);
+runic_obj_t runic_node_right(runic_obj_t ro);
 
 //// atom
-size_t runic_atom_size(runic_obj_t ro); // returns the size of atom
-bool runic_atom_read(runic_obj_t ro, char* c); // returns atom value
+size_t runic_atom_size(runic_obj_t ro);
+bool runic_atom_read(runic_obj_t ro, char* c);
 
 // mutators
 //// file
-bool runic_set_root(runic_t* r, runic_obj_t ro);  // returns false on failure
-runic_obj_t runic_alloc_node(runic_t* r); // returns null on failure, otherwise, addr
-runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);  // returns null on failure
-runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value); // allocs and writes
+bool runic_set_root(runic_t* r, runic_obj_t ro);
+runic_obj_t runic_alloc_node(runic_t* r);
+runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);
+runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value);
 
 //// node
-bool runic_node_set_left(runic_obj_t* parent, runic_obj_t child); // sets parent->left = child
-bool runic_node_set_right(runic_obj_t* parent, runic_obj_t child); // sets parent->right = child
+bool runic_node_set_left(runic_obj_t* parent, runic_obj_t child);
+bool runic_node_set_right(runic_obj_t* parent, runic_obj_t child);
 
 //// atom
-bool runic_atom_write(runic_obj_t* ro, const char* val); // sets atom's value
+bool runic_atom_write(runic_obj_t* ro, const char* val);
 
 // closing statements
 #ifdef __cplusplus

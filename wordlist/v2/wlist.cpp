@@ -21,6 +21,7 @@ int insert_next_val(runic_t &r, superNode node, string value) {
 	}
 	return -1;
 	/* balance tree */
+	// hash mapped tree
 }
 
 void insert_item(runic_t &r, string value) {
