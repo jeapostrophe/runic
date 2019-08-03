@@ -2,14 +2,16 @@
    :language: c
 
 ================
-:c:`title`
+:c:`bool runic_atom_read(runic_obj_t ro, char* c);`
 ================
 
 
 Arguments:
 ==========
 
-	:c:``
+	**ro** – 
+
+	**c** – 
 
 
 Returns:

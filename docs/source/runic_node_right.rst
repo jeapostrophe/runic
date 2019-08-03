@@ -9,7 +9,7 @@
 Arguments:
 ==========
 
-	:c:``
+	**arg1**
 
 
 Returns:

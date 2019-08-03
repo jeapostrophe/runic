@@ -1,0 +1,3 @@
+[submodule "wordlist/v2/PicoSHA2"]
+	path = wordlist/v2/PicoSHA2
+	url = https://github.com/okdshin/PicoSHA2.git

@@ -10,7 +10,7 @@ The above function signature outlines the operation regarding the closing of a r
 Arguments:
 ==========
 
-	:c:`r` – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to close any other object is undefined behavior. The program will almost certainly return :c:`false`. Attempting to close invalid :c:`runic_t` objects is not encouraged.
+	**r** – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to close any other object is undefined behavior. The program will almost certainly return :c:`false`. Attempting to close invalid :c:`runic_t` objects is not encouraged.
 
 Returns:
 ========

@@ -5,15 +5,14 @@
 #include <vector> // vector
 #include <cstring> // memcmp, strlen
 #include "wlist.h" // wlist
+#include "PicoSHA2/picosha2.h"
 
 using namespace std;
 
-string __get_hash_val(string input)
-{
-	int out;
-
-
-	return to_string(out);
+string __get_hash_val(string input) {
+	string hash_hex_str;
+	picosha2::hash256_hex_string(input, hash_hex_str);
+	return hash_hex_str;
 }
 
 int insert_next_val(runic_t &r, superNode parent, superNode node, string value, bool l=false) {
@@ -35,9 +34,9 @@ int insert_next_val(runic_t &r, superNode parent, superNode node, string value, 
 		(value.length() < node.read().length()) ? value.length() : node.read().length());
 
 	if (dir > 0) // if less than 0, insert left subtree
-		insert_next_val(r, node, node.left(), value, true);
+		return insert_next_val(r, node, node.left(), value, true);
 	else // insert right subtree
-		insert_next_val(r, node, node.right(), value);
+		return insert_next_val(r, node, node.right(), value);
 	
 	return -1; // if you reach here, operation failed miserably.
 }
@@ -67,9 +66,9 @@ int insert_base_val(runic_t &r, superNode node, string value) {
 		(value.length() < node.read().length()) ? value.length() : node.read().length());
 
 	if (dir > 0) // if less than 0, insert left subtree
-		insert_next_val(r, node, node.left(), value, true);
+		return insert_next_val(r, node, node.left(), value, true);
 	else // insert right subtree
-		insert_next_val(r, node, node.right(), value);
+		return insert_next_val(r, node, node.right(), value);
 	
 	return -1; // if you reach here, operation failed miserably.
 }

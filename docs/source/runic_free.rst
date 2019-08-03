@@ -10,7 +10,7 @@ The above function signature outlines the operation regarding the access of the 
 Arguments:
 ==========
 
-	:c:`r` – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to use any other object is undefined behavior. The program will almost certainly return :c:`0`. Attempting to access the free pointer with invalid :c:`runic_t` objects is not encouraged.
+	**r** – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to use any other object is undefined behavior. The program will almost certainly return :c:`0`. Attempting to access the free pointer with invalid :c:`runic_t` objects is not encouraged.
 
 Returns:
 ========
