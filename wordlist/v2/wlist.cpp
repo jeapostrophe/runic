@@ -1,63 +1,103 @@
 #include <iostream>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include <vector> // vector
 #include <cstring> // memcmp, strlen
 #include "wlist.h" // wlist
 
 using namespace std;
 
-int insert_next_val(runic_t &r, superNode node, string value) {
+string __get_hash_val(string input)
+{
+	int out;
+
+
+	return to_string(out);
+}
+
+int insert_next_val(runic_t &r, superNode parent, superNode node, string value, bool l=false) {
 	if (node.empty()){ // if no root exists
 		superNode newNode(r,value); // allocate one with this value
-		return newNode.str_loc(); // return it's location
+		if (!newNode.empty()) {
+			if (l)
+				parent.set_left(newNode);
+			else
+				parent.set_right(newNode);
+				
+			return newNode.str_loc(); // return it's location
+		} else
+			return -1; // alloc failed
 	}
-	
+
+	// otherwise a root exists, determine left or right
 	int dir = memcmp(node.read().c_str(), value.c_str(),
 		(value.length() < node.read().length()) ? value.length() : node.read().length());
+
+	if (dir > 0) // if less than 0, insert left subtree
+		insert_next_val(r, node, node.left(), value, true);
+	else // insert right subtree
+		insert_next_val(r, node, node.right(), value);
 	
-	if (dir >= 0 || /* balance is unbalanced */1) {
-		/* put in left side recursively */
-	} else {
-		/* put in right side recursively */
-	}
-	return -1;
-	/* balance tree */
-	// hash mapped tree
+	return -1; // if you reach here, operation failed miserably.
 }
 
 void insert_item(runic_t &r, string value) {
 	int loc;
 	superNode node(r); // generate a potential superNode
-	if ((loc = insert_next_val(r, node, value)) != -1) { // fall through to find the correct location
+	string hash_val = __get_hash_val(value);
+	if ((loc = insert_base_val(r, node, hash_val)) != -1)// fall through to find the correct location
 		printf("OK @ %d\n", loc);
-	} else {
-		// something got mal-formed
+	else // something got mal-formed
 		printf("NO\n");
-	}
 }
 
-int lookup_next_val(superNode node, string value) {
-	if (node.empty())
-		return -1;
+int insert_base_val(runic_t &r, superNode node, string value) {
+	if (node.empty()){ // if no root exists
+		superNode newNode(r,value); // allocate one with this value
+		if (!newNode.empty()) {
+			newNode.set_root(r);
+			return newNode.str_loc(); // return it's location
+		} else
+			return -1; // alloc failed
+	}
 
+	// otherwise a root exists, determine left or right
 	int dir = memcmp(node.read().c_str(), value.c_str(),
 		(value.length() < node.read().length()) ? value.length() : node.read().length());
 
-	if (dir == 0)
+	if (dir > 0) // if less than 0, insert left subtree
+		insert_next_val(r, node, node.left(), value, true);
+	else // insert right subtree
+		insert_next_val(r, node, node.right(), value);
+	
+	return -1; // if you reach here, operation failed miserably.
+}
+
+
+int lookup_next_val(superNode node, string value) {
+	if (node.empty())  // no root node means no value
+		return -1;
+
+	// otherwise a root exists, determine left or right
+	int dir = memcmp(node.read().c_str(), value.c_str(),
+		(value.length() < node.read().length()) ? value.length() : node.read().length());
+
+	if (dir == 0) // root is the correct node
 		return node.str_loc();
-	else if (dir > 0) // not sure if these should be swapped
+	else if (dir > 0) // left is the correct subtree
 		return lookup_next_val(node.left(), value);
-	else /* dir < 0 */
+	else // right is the correct subtree
 		return lookup_next_val(node.right(), value);
 }
 
 void lookup_item(runic_t r, string value) {
 	int loc;
 	superNode node(r);
-	if ((loc = lookup_next_val(node, value)) != -1) {
+	string hash_val = __get_hash_val(value);
+	if ((loc = lookup_next_val(node, hash_val)) != -1)
 		printf("YES @ %d\n", loc);
-	} else {
-		// doesnt exist or otherwise mal-formed
+	else // doesnt exist or otherwise mal-formed
 		printf("NO\n");
-	}
 }
 

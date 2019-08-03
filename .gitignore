@@ -11,3 +11,5 @@
 #executables
 *.e
 *.d
+#doc html
+/docs/build/*

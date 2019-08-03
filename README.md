@@ -1,5 +1,8 @@
 # Runic: A file format for encoding Abstract Syntax Trees.
 
+[![Documentation Status](https://readthedocs.org/projects/runic/badge/?version=latest)](https://runic.readthedocs.io/en/latest/?badge=latest)
+
+
 # Contents:
 
 - [Abstract](#abstract)

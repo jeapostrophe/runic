@@ -36,9 +36,9 @@ typedef enum runic_obj_ty {
 
 // structs
 typedef struct runic {
+	const char* path;
 	int fd;
 	struct stat sb;
-	const char* path;
 	int mode;
 	uint8_t* base;
 } runic_t;
