@@ -9,7 +9,7 @@ Abstract:
 ---------
 A file format for trees that can encode programs directly as ASTs. For example, the program :c:`int f ( int x ) { return 2 * x + 3; }` is normally stored as a string, but in our format ("Runic"), it will be stored as a tree: :c:`(function int f ([int x]) (return (+ (* 2 x) 3)))` where ()s indicate nodes as below:
 
-.. code-block::
+.. code-block:: #
 
         FUNCTION
    /    /    \      \
@@ -24,7 +24,7 @@ A file format for trees that can encode programs directly as ASTs. For example, 
 
 But the tree is NOT stored linearized, instead it is stored as a binary encoding. For example, it might be stored like this:
 
-.. code-block::
+.. code-block:: racket
 
 	RUNIC
 	0
@@ -44,7 +44,7 @@ But the tree is NOT stored linearized, instead it is stored as a binary encoding
 
 This is just a sketch! The file starts with a magic number. Next, is the address of the first object (the top of the tree.) Then objects are encoded as the text data, then the number of children, then the children. In the real format, the pointers number, would be the offset in the file. So for example, if the first node ("0") stored pointers as 64-bits, then the second node ("1") would actually be stored at address 48, because there are 8 bytes in "function" and then 5 64-bit numbers. That is, the file would look like this…
 
-.. code-block::
+.. code-block:: #
 
 	RUNIC\0\0\0\0\0\0\0\0function\0\0\0\0\0\0\0\4\0\0\0\0\0\0\0\48....
 
@@ -67,7 +67,7 @@ Tasks
 
 API
 ----
-.. code-block::
+.. code-block:: c
 
 	typedef /* ??? */ runic_t;
 	typedef /* ??? */ runic_obj_t;
@@ -98,7 +98,7 @@ API
 
 Refined Example:
 -----------------
-.. code-block::
+.. code-block:: c++
 
 	runic_obj_t runic_alloc_atom_str ( runic_t ro, const char* c ) {
 	auto ra = runic_alloc_node( ro, strlen(c) );
@@ -152,7 +152,7 @@ Refined Example:
 
 File Format Details
 --------------------
-.. code-block::
+.. code-block:: c
 
 	// FILE = MAGIC NUMBER, OFFSET of ROOT, OFFSET of FREE
 	struct {
@@ -179,7 +179,7 @@ File Format Details
 
 Implementation Sketch
 ----------------------
-.. code-block::
+.. code-block:: c
 
 	void runic_node_set_left( runic_obj_t ro, runic_obj_t nl ) {
 	runic_t r = ro->file;
