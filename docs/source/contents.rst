@@ -3,6 +3,7 @@
 .. toctree::
    :maxdepth: 1
 
+   index
    runic
    intro
    deps_and_refs
