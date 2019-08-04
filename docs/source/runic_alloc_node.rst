@@ -1,16 +1,16 @@
 .. role:: c(code)
    :language: c
 
-================
+==============================================
 :c:`runic_obj_t runic_alloc_node(runic_t* r);`
-================
+==============================================
 
 The above function signature outlines the operation regarding allocating a :c:`NODE`.
 
 Arguments:
 ==========
 
-	**r** – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to use any other object is undefined behavior. The program will almost certainly return an invalid :c:`runic_obj_t`. Attempting to allocate objects with invalid :c:`runic_t` objects is not encouraged.
+	**r** – A :c:`runic_t` object that was returned as a result of a successful open operation. Attempting to use any other object is an invalid operation. The program will almost certainly return an invalid :c:`runic_obj_t`. Attempting to allocate objects with invalid :c:`runic_t` objects is not encouraged.
 
 
 Returns:

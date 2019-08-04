@@ -48,5 +48,5 @@ The following Documentation covers the runic API and it’s uses – This includ
 Indices and tables
 ==================
 
-* :ref:`genindex`
 * :ref:`search`
+

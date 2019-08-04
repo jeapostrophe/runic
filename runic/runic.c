@@ -196,6 +196,11 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	ret.offset = obj_ref->left;
 	ret.base = ro.base;
+	if (obj_ref->left == (uint64_t)NULL) {
+		perror("No left child exists for this object.\n");
+		ret.base = NULL;
+		ret.offset = (uint64_t)NULL;
+	}
 	return ret;
 }
 
@@ -211,6 +216,11 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	ret.offset = obj_ref->right;
 	ret.base = ro.base;
+	if (obj_ref->right == (uint64_t)NULL) {
+		perror("No right child exists for this object.\n");
+		ret.base = NULL;
+		ret.offset = (uint64_t)NULL;
+	}
 	return ret;
 }
 
