@@ -115,7 +115,7 @@ uint64_t __runic_fwd_addr(runic_obj_t ro) {
 }
 
 runic_obj_t __runic_lookback_left(runic_t* r, runic_t* rn, runic_obj_t ro) {
-	runic_obj_node_t* node_ref = (rn->base + ro.offset);
+	runic_obj_node_t* node_ref = (runic_obj_node_t*)(rn->base + ro.offset);
 	runic_obj_t rlo; 
 	rlo.base = r->base;
 	rlo.offset = node_ref->left;
@@ -123,7 +123,7 @@ runic_obj_t __runic_lookback_left(runic_t* r, runic_t* rn, runic_obj_t ro) {
 }
 
 runic_obj_t __runic_lookback_right(runic_t* r, runic_t* rn, runic_obj_t ro) {
-	runic_obj_node_t* node_ref = (rn->base + ro.offset);
+	runic_obj_node_t* node_ref = (runic_obj_node_t*)(rn->base + ro.offset);
 	runic_obj_t rro; 
 	rro.base = r->base;
 	rro.offset = node_ref->right;
@@ -211,8 +211,8 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	rr.offset = off2;
 	rl.base = rn->base;
 	rr.base = rn->base;
-	runic_node_set_left(ro, rl);
-	runic_node_set_right(ro, rr);
+	runic_node_set_left(&ro, rl);
+	runic_node_set_right(&ro, rr);
 
 	// return a success!~
 	return false;
