@@ -10,17 +10,23 @@
 
 	/****
 	* runic.h - API for .runic filetype
-	*           covering opening, closing, and 
-	*           modifying source code files 
-	*           directly on disk using a tree
-	*           format.
+	* 			 covering opening, closing, and 
+	* 			 modifying source code files 
+	* 			 directly on disk using a tree
+	* 			 format.
 	****/
 
 	// dependencies
-	#include <stddef.h> // size_t
+	#include <stdio.h> // perror, rename, remove
+	#include <stdlib.h> // exit
 	#include <stdbool.h> // bool
+	#include <stddef.h> // size_t
 	#include <stdint.h> // uintXX_t
+	#include <string.h> // memcmp, memcpy, strlen
+	#include <fcntl.h> // open flags
+	#include <unistd.h> // close, sysconf
 	#include <sys/stat.h> // struct stat, open, fstat
+	#include <sys/mman.h> // mmap, munmap, map flags
 	// see documentation for other necessary dependencies
 
 	// preprocessor statements
@@ -32,8 +38,6 @@
 
 	// constants
 	#define DEFAULT_ROOT 0x15
-	#define HEADER_SIZE 0x05
-	#define NODE_TAG_VALUE 0x00
 
 	// enums
 	enum runic_file_modes {
@@ -64,6 +68,7 @@
 	bool runic_close(runic_t r);
 	runic_obj_t runic_root(runic_t r);
 	uint64_t runic_free(runic_t r);
+	uint64_t runic_remaining(runic_t r, bool silent);
 
 	//// node
 	runic_obj_ty_t runic_obj_ty(runic_obj_t ro);
@@ -77,6 +82,7 @@
 	// mutators
 	//// file
 	bool runic_set_root(runic_t* r, runic_obj_t ro);
+	bool runic_shrink(runic_t* r);
 	runic_obj_t runic_alloc_node(runic_t* r);
 	runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);
 	runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value);
@@ -93,4 +99,3 @@
 		}
 	#endif
 	#endif /* runic.h */
-

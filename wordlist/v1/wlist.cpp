@@ -64,18 +64,20 @@ int lookup_next_val(runic_t r, string value)
 			next = runic_node_right(current); // get the next node
 			ra = runic_node_left(current); // check its string
 			runic_atom_read(ra, c); // deposit string into c
-			if (memcmp(value.c_str(), c,
-				(value.length() < strlen(c)) ? value.length() : strlen(c)) == 0) { // if the strings match
-				loc = ra.offset; // get the loc
-				return loc; // return loc
+			if (value.length() == strlen(c)) { // check the length
+				if (memcmp(value.c_str(), c, strlen(c)) == 0) { // if the strings match
+					loc = ra.offset; // get the loc
+					return loc; // return loc
+				}
 			}
 		} while (next.offset >= DEFAULT_ROOT); // stop when next is null
 	} 
 	else if (ans == ATOM) { // if the root node is a string then lets find out what it is
 		runic_atom_read(current, c); // deposit string into c
-		if (memcmp(value.c_str(), c,
-			(value.length() < strlen(c)) ? value.length() : strlen(c)) == 0) {
-			loc = current.offset;
+		if (value.length() == strlen(c)) {
+			if (memcmp(value.c_str(), c, strlen(c)) == 0) {
+				loc = current.offset;
+			}
 		}
 	}
 	return loc;

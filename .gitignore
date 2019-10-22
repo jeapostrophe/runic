@@ -4,6 +4,7 @@
 .\#*
 #macOS artifacts
 .DS_Store
+.notes
 #vscode artifacts
 /.vscode/*
 #object files

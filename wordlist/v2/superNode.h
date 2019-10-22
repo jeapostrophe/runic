@@ -6,6 +6,8 @@
 #ifndef SUPERNODE_H
 #define SUPERNODE_H
 
+#define SUPERNODE_MEMORY_SIZE 0x23
+
 using namespace std;
 
 class superNode {
@@ -18,9 +20,9 @@ public:
 	string read() const; // gives atom
 	int bf() const;	// returns current bf
 	bool empty() const; // returns safety check on emptiness
-	int str_loc() const;
+	int str_loc() const; // location of the string associated with this superNode
 
-	bool set_bf(int new_bf);
+	bool balance(); // balances this node and all subnodes.
 	bool set_left(superNode left); // attaches another super node to itself as child
 	bool set_right(superNode right);  // same
 	bool write(string input); // alters existing atom value
@@ -29,11 +31,14 @@ public:
 	~superNode();
 
 private:
-	runic_obj_t super_node, atom, children;
+	runic_obj_t super_node, atom, children; // the root node, value, and child carrier
 	bool isempty; // variable for empty (meaningless) superNodes
-	int balance_factor;
-	superNode(runic_obj_t node); // generates a super node from existing node data in file
+	int balance_factor; // balance factor of tree
+
 	superNode(); // generates an empty super node
+	superNode(runic_obj_t node); // generates a super node from existing node data in file
+
+	bool set_bf(int new_bf); // sets balance factor of tree
 };
 
 /*

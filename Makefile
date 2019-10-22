@@ -1,10 +1,8 @@
 TOPTARGETS := all clean
 
-SUBDIRS := runic test wordlist/v1 wordlist/v2
-IGNORES :=  wordlist/v2/PicoSHA2
-RUNS := $(filter-out $(IGNORES), $(SUBDIRS))
+SUBDIRS := docs runic test wordlist/v1 wordlist/v2
 
-$(TOPTARGETS): $(RUNS)
+$(TOPTARGETS): $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -C $@ $(MAKECMDGOALS)
 

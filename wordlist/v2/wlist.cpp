@@ -1,11 +1,9 @@
 #include <iostream>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <vector> // vector
+#include <string> // string
 #include <cstring> // memcmp, strlen
 #include "wlist.h" // wlist
-#include "PicoSHA2/picosha2.h"
+#include "superNode.h" // superNode
+#include "PicoSHA2/picosha2.h" // sha256
 
 using namespace std;
 
@@ -13,6 +11,16 @@ string __get_hash_val(string input) {
 	string hash_hex_str;
 	picosha2::hash256_hex_string(input, hash_hex_str);
 	return hash_hex_str;
+}
+
+void insert_item(runic_t &r, string value) {
+	int loc;
+	superNode node(r); // generate a potential superNode
+	string hash_val = __get_hash_val(value);
+	if ((loc = insert_base_val(r, node, hash_val)) != -1)// fall through to find the correct location
+		printf("OK @ %d\n", loc);
+	else // something got mal-formed
+		printf("NO\n");
 }
 
 int insert_next_val(runic_t &r, superNode parent, superNode node, string value, bool l=false) {
@@ -41,16 +49,6 @@ int insert_next_val(runic_t &r, superNode parent, superNode node, string value, 
 	return -1; // if you reach here, operation failed miserably.
 }
 
-void insert_item(runic_t &r, string value) {
-	int loc;
-	superNode node(r); // generate a potential superNode
-	string hash_val = __get_hash_val(value);
-	if ((loc = insert_base_val(r, node, hash_val)) != -1)// fall through to find the correct location
-		printf("OK @ %d\n", loc);
-	else // something got mal-formed
-		printf("NO\n");
-}
-
 int insert_base_val(runic_t &r, superNode node, string value) {
 	if (node.empty()){ // if no root exists
 		superNode newNode(r,value); // allocate one with this value
@@ -73,6 +71,15 @@ int insert_base_val(runic_t &r, superNode node, string value) {
 	return -1; // if you reach here, operation failed miserably.
 }
 
+void lookup_item(runic_t r, string value) {
+	int loc;
+	superNode node(r);
+	string hash_val = __get_hash_val(value);
+	if ((loc = lookup_next_val(node, hash_val)) != -1)
+		printf("YES @ %d\n", loc);
+	else // doesnt exist or otherwise mal-formed
+		printf("NO\n");
+}
 
 int lookup_next_val(superNode node, string value) {
 	if (node.empty())  // no root node means no value
@@ -89,14 +96,3 @@ int lookup_next_val(superNode node, string value) {
 	else // right is the correct subtree
 		return lookup_next_val(node.right(), value);
 }
-
-void lookup_item(runic_t r, string value) {
-	int loc;
-	superNode node(r);
-	string hash_val = __get_hash_val(value);
-	if ((loc = lookup_next_val(node, hash_val)) != -1)
-		printf("YES @ %d\n", loc);
-	else // doesnt exist or otherwise mal-formed
-		printf("NO\n");
-}
-

@@ -12,11 +12,12 @@ The following dependencies are a complete list of the components required to use
 
 The list is as follows:
 
-- :c:`stdio.h`		- Console I/O
+- :c:`stdio.h`		- Console and System I/O
 - :c:`stdlib.h`		– System-level (entry/exit) operations
+- :c:`stdbool.h`	– Boolean type compatibility
 - :c:`stddef.h`		– Data type compatibility
-- :c:`stdbool.h`	– Data type compatibility
-- :c:`string.h`		– String and data manipulation
+- :c:`stdint.h`		– Integer type compatibility
+- :c:`string.h`		– String and memory manipulation
 - :c:`fcntl.h`		– File control
 - :c:`unistd.h`		– Accessing system configuration
 - :c:`sys/stat.h`	– File status access
@@ -48,11 +49,8 @@ The following statements are required to “bookend” the opening statements at
 :c:`// constants`
 =================
 
-The following constants define values used throughout the operation of this library. :c:`DEFAULT_ROOT` defines the first legal memory location for data after the file header, :c:`HEADER_SIZE` defines the size of the magic number used by the file, and :c:`NODE_TAG_VALUE` defines how the API identifies :c:`NODE` from :c:`ATOM`. To learn more about :c:`NODE` and :c:`ATOM`, please navigate to their respective sections in the documentation.
-
+There is one constant exposed to the user which can be used to perform safety checks. :c:`DEFAULT_ROOT` defines the first legal memory location for any data after the file header. :c:`runic_obj_t`'s which have :c:`offset`s with values less than :c:`DEFAULT_ROOT` are effectively :c:`NULL` and should be treated as such. Writing information below this memory location will corrupt the file.
 
 .. code-block:: c
 
 	#define DEFAULT_ROOT 0x15
-	#define HEADER_SIZE 0x05
-	#define NODE_TAG_VALUE 0x00

@@ -18,11 +18,11 @@
 # -- Project information -----------------------------------------------------
 
 project = 'runic'
-copyright = '2019, Stephen Hecht, Jay McCarthy'
+copyright = '2019, Jay McCarthy'
 author = 'Stephen Hecht, Jay McCarthy'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1.0001'
+release = '0.5.0.1000'
 
 
 # -- General configuration ---------------------------------------------------
