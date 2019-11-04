@@ -95,7 +95,6 @@ bool __runic_open_on_args(runic_t* r, const char* path, int open_flags,
 	} else {
 		if (memcmp((char*)r->base, "RUNIC", HEADER_SIZE) != 0) {
 			runic_close(*r);
-			perror("File is not a runic file.\n");
 			return stat;
 		}
 	}
@@ -116,83 +115,62 @@ uint64_t __runic_fwd_addr(runic_obj_t ro) {
 
 runic_obj_t __runic_lookback_left(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	runic_obj_node_t* node_ref = (runic_obj_node_t*)(rn->base + ro.offset);
-	runic_obj_t rlo; 
+	runic_obj_t rlo, r_null; 
 	rlo.base = r->base;
 	rlo.offset = node_ref->left;
-	return rlo;
+	if (rlo.base != NULL && rlo.offset >= DEFAULT_ROOT)
+		return rlo;
+	else {
+		r_null.base = NULL;
+		r_null.offset = 0;
+		return r_null;
+	}
 }
 
 runic_obj_t __runic_lookback_right(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	runic_obj_node_t* node_ref = (runic_obj_node_t*)(rn->base + ro.offset);
-	runic_obj_t rro; 
+	runic_obj_t rro, r_null; 
 	rro.base = r->base;
 	rro.offset = node_ref->right;
-	return rro;
+	if (rro.base != NULL && rro.offset >= DEFAULT_ROOT)
+		return rro;
+	else {
+		r_null.base = NULL;
+		r_null.offset = 0;
+		return r_null;
+	}
 }
 
 uint64_t __runic_move(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	char c[255];
 	uint64_t out;
-	runic_obj_t rno;
+	runic_obj_t rno, ret;
 	runic_obj_ty_t type = runic_obj_ty(ro);
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		ret.base = NULL;
+		ret.offset = (uint64_t)NULL;
+		return ret.offset;
+	}
 	if (type == FWD_PTR)
 		return __runic_fwd_addr(ro);
-	else if (type == ATOM)
-	{
+	else if (type == ATOM) {
 		if (runic_atom_read(ro, c))
-			rno = runic_alloc_atom_str(r, c);
+			rno = runic_alloc_atom_str(rn, c);
 		else {
 			out = (uint64_t)NULL;
 			return out;
 		}
 	} else // is node
-		rno = runic_alloc_node(r);
+		rno = runic_alloc_node(rn);
+	// if the alloc fails in some way
+	if (rno.base == NULL || rno.offset < DEFAULT_ROOT) {
+		ret.base = NULL;
+		ret.offset = (uint64_t)NULL;
+		return ret.offset;
+	}
 	// alloc the fwdptr
 	__runic_alloc_fwdptr(ro, rno.offset);
 	return rno.offset;
-}
-
-bool __runic_compact(runic_t* r) {
-	int open_flags, share_flags, prot_flags, map_mode;
-	runic_t rn = runic_open("/tmp/tmp2.runic", CREATEWRITE); // open runic file (temp)
-	runic_open(r->path, r->mode);
-	if (r->sb.st_size > sysconf(_SC_PAGESIZE)) // if r (runic) is greater than 4k expand the rn (runic new)
-	{
-		runic_close(rn);
-		open_flags = O_RDWR | O_APPEND; // append to this file in read-write
-		share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-		prot_flags = PROT_READ | PROT_WRITE;
-		map_mode = MAP_SHARED;
-		if ((rn.fd = open(rn.path, open_flags, share_flags)) == OP_FAIL_CODE) { // reopen
-			perror("File open failed.\n");
-			return false;
-		}
-		write(rn.fd, "\0",	// write into file and match size - 4k (since its already there) - free (since it's not needed.)
-		(((r->sb.st_size - sysconf(_SC_PAGESIZE) - runic_free(*r)) > 0)? (r->sb.st_size - sysconf(_SC_PAGESIZE) - runic_free(*r)): 0));
-		if ((rn.base = mmap(NULL, rn.sb.st_size * 2, // mmap file with new, proper size
-			prot_flags, map_mode, rn.fd, 0)) == MAP_FAILED) 
-		{
-			close(rn.fd);
-			perror("Mmap failed.\n");
-			return false;
-		}
-	}
-	if (memcpy(rn.base, r->base, (r->sb.st_size - runic_free(*r))) == NULL) {
-		perror("Compact failed.\n");
-		return false;
-	}
-	if (remove(r->path) == OP_FAIL_CODE) { // remove old file
-		perror("File removal failed.\n");
-		return false;
-	}
-	if (rename(rn.path, r->path) == OP_FAIL_CODE) { // rename and replace new file into old path
-		perror("File rename failed.\n");
-		return false;
-	}
-	rn.path = r->path; // path should now properly reflect the path
-	runic_close(*r);
-	runic_close(rn);
-	return true;
 }
 
 bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
@@ -201,45 +179,58 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	// get the children
 	rl = __runic_lookback_left(r, rn, ro);
 	rr = __runic_lookback_right(r, rn, ro);
+	if (rl.base == NULL || rr.base == NULL || rl.offset < DEFAULT_ROOT || rr.offset < DEFAULT_ROOT)
+		return false;
 
 	// move the children
-	off1 = __runic_move(r, rn, rl);
-	off2 = __runic_move(r, rn, rr);
+	if ((off1 = __runic_move(r, rn, rl)) < DEFAULT_ROOT ||
+		(off2 = __runic_move(r, rn, rr)) < DEFAULT_ROOT)
+		return false;
 
 	// fix the pointers for the parent
 	rl.offset = off1;
 	rr.offset = off2;
 	rl.base = rn->base;
 	rr.base = rn->base;
-	runic_node_set_left(&ro, rl);
-	runic_node_set_right(&ro, rr);
-
+	if (!runic_node_set_left(&ro, rl) ||
+		!runic_node_set_right(&ro, rr))
+		return false;
+		
 	// return a success!~
-	return false;
+	return true;
 }
 
-bool __runic_doscan(runic_t* r, runic_t* rn) {
+int __runic_doscan(runic_t* r, runic_t* rn) {
+	int freed = 0;
 	uint64_t offset;
-	runic_obj_t ro = runic_root(*r);
 	runic_obj_ty_t type;
-	offset = __runic_move(r, rn, ro);
+	runic_obj_t ro = runic_root(*r);
+	if (ro.base == NULL || ro.offset < DEFAULT_ROOT)
+		return freed;
+	if ((offset = __runic_move(r, rn, ro)) < DEFAULT_ROOT)
+		return freed;
 	do {
-		type = runic_obj_ty(ro);
-		if (type == NODE) {
-			ro.offset = offset;
-			ro.base = rn->base;
-			if (__runic_move_children(r, rn, ro))
-				/* do something drastic!!!! */ ;
-			offset += sizeof(runic_obj_node_t);
-		} else {
-			ro.offset = offset;
-			ro.base = rn->base;
-			offset += sizeof(uint8_t) + runic_atom_size(ro);
+		if (ro.base != NULL && ro.offset >= DEFAULT_ROOT) {
+			// keep doing the thing as long as the above is true
+			type = runic_obj_ty(ro);
+			if (type == NODE) {
+				ro.offset = offset;
+				ro.base = rn->base;
+				if (!__runic_move_children(r, rn, ro))
+					/* do something drastic!!!! */ ;
+				offset += sizeof(runic_obj_node_t);
+			} else {
+				ro.offset = offset;
+				ro.base = rn->base;
+				offset += sizeof(uint8_t) + runic_atom_size(ro);
+			}
 		}
+		else
+			/* do something drastic!!!! */ ;
 	} while (offset < runic_free(*rn));
 	if (runic_set_root(rn, ro))
-		return true;
-	return false;
+		return (runic_free(*rn) - runic_free(*r));
+	return freed;
 }
 
 bool __calc_remaing_space(runic_t r) {
@@ -252,41 +243,74 @@ bool __calc_remaing_space(runic_t r) {
 		stat = true;
 	}
 	return stat;
-} 
+}
 
-int __garbage_collect() {
-	int freed = 0;
-	return freed;
+int __runic_compact(runic_t* r) {
+    runic_file_t* file_ref;
+	int open_flags, share_flags, prot_flags, map_mode, out;
+	runic_t rn;
+    rn.base = NULL;
+	rn.path = "/tmp/tmp2.runic";
+	rn.mode = CREATEWRITE;
+	open_flags = O_RDWR; // append to this file in read-write
+	share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	prot_flags = PROT_READ | PROT_WRITE;
+	map_mode = MAP_SHARED;
+	if ((rn.fd = open(rn.path, open_flags, share_flags)) == OP_FAIL_CODE) { // reopen
+		return 0;
+	}
+	write(rn.fd, "\0", runic_free(*r)); // new files are 0 sized, so write to file with space equal runic free
+	if ((rn.base = mmap(NULL, runic_free(*r), // mmap file with new, proper size
+		prot_flags, map_mode, rn.fd, 0)) == MAP_FAILED) 
+	{
+		close(rn.fd);
+		return 0;
+	}
+    if (fstat(rn.fd, &rn.sb) == OP_FAIL_CODE) {
+        close(rn.fd);
+        return 0;
+    }
+    file_ref = (runic_file_t*)rn.base;
+    memcpy((char*)rn.base, "RUNIC", HEADER_SIZE); // insert magic number and return
+    file_ref->root = (uint64_t)NULL; // set first node
+    file_ref->free = DEFAULT_ROOT; // start of free
+	if ((out = __runic_doscan(r, &rn)) <= 0)
+		return 0;
+	runic_close(*r);
+	if (remove(r->path) == OP_FAIL_CODE) // remove old file
+		return 0;
+	if (rename(rn.path, r->path) == OP_FAIL_CODE) // rename and replace new file into old path
+		return 0;
+	rn.path = r->path; // path should now properly reflect the path
+	runic_close(rn);
+	return out;
 }
 
 bool __expand_file(runic_t* r) {
 	bool stat = false;
-	// runic_file_t* file_ref;
-	// int open_flags, share_flags, prot_flags, map_mode;
-	// runic_close(*r); // close mmap and file
-	// open_flags = O_RDWR | O_APPEND; // append to this file in read-write
-	// share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-	// prot_flags = PROT_READ | PROT_WRITE;
-	// map_mode = MAP_SHARED;
-	// if ((r->fd = open(r->path, open_flags, share_flags)) == -1) { // reopen
-	// 	perror("File open failed.\n");
-	// 	return stat;
-	// }
-	// write(r->fd, "\0", r->sb.st_size); // write into file (this will double capacity)
-	// if ((r->base = mmap(NULL, r->sb.st_size * 2, // mmap file with new, doubled size
-	// 	prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) 
-	// {
-	// 	close(r->fd);
-	// 	perror("Mmap failed.\n");
-	// 	return stat;
-	// }
-	// file_ref = (runic_file_t*)r->base;
-	// if (fstat(r->fd, &r->sb) == -1) {
-	// 	close(r->fd);
-	// 	perror("File access corrupted, couldn't get filesize.\n");
+	runic_file_t* file_ref;
+	int open_flags, share_flags, prot_flags, map_mode;
+	runic_close(*r); // close mmap and file
+	open_flags = O_RDWR | O_APPEND; // append to this file in read-write
+	share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	prot_flags = PROT_READ | PROT_WRITE;
+	map_mode = MAP_SHARED;
+	if ((r->fd = open(r->path, open_flags, share_flags)) == -1) { // reopen
+		return stat;
+	}
+	write(r->fd, "\0", r->sb.st_size); // write into file its current size (this will double capacity)
+	if ((r->base = mmap(NULL, r->sb.st_size * 2, // mmap file with new, doubled size
+		prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) 
+	{
+		close(r->fd);
+		return stat;
+	}
+	file_ref = (runic_file_t*)r->base;
+	if (fstat(r->fd, &r->sb) == -1) {
+		close(r->fd);
 	 	return stat;
-	// }
-	// return stat = true;
+	}
+	return stat = true;
 }
 
 bool __calc_remaing_space_atom(runic_t r, size_t size) {

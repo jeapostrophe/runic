@@ -63,7 +63,7 @@ int insert_base_val(runic_t &r, superNode node, string value) {
 	int dir = memcmp(node.read().c_str(), value.c_str(),
 		(value.length() < node.read().length()) ? value.length() : node.read().length());
 
-	if (dir > 0) // if less than 0, insert left subtree
+	if (dir > 0) // if greater than 0, insert left subtree
 		return insert_next_val(r, node, node.left(), value, true);
 	else // insert right subtree
 		return insert_next_val(r, node, node.right(), value);

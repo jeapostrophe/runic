@@ -46,8 +46,8 @@ int main(void)
 	if (rn.base != ro2.base) {
 		cout << "fail test 8" << endl;
 	}
-	runic_atom_read(ra, c);
-	cout << runic_atom_size(ra) << endl;
+	runic_atom_read(ro3, c);
+	cout << runic_atom_size(ro3) << endl;
 	cout << c << endl;
 	runic_close(r);
 	return 0;
