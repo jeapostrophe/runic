@@ -127,6 +127,16 @@ runic_obj_t __runic_lookback_left(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	}
 }
 
+bool __runic_obj_node_cpy(runic_t src, runic_t dest, uint64_t src_offset) {
+    runic_file_t* source, *destination;
+    source = (runic_file_t*) src.base;
+    destination= (runic_file_t*) dest.base;
+    if (memcpy(dest.base+(destination->free)-sizeof(runic_obj_node_t), src.base+src_offset, sizeof(runic_obj_node_t)) != NULL)
+        return true;
+	else
+        return false;
+}
+
 runic_obj_t __runic_lookback_right(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	runic_obj_node_t* node_ref = (runic_obj_node_t*)(rn->base + ro.offset);
 	runic_obj_t rro, r_null; 
@@ -160,8 +170,14 @@ uint64_t __runic_move(runic_t* r, runic_t* rn, runic_obj_t ro) {
 			out = (uint64_t)NULL;
 			return out;
 		}
-	} else // is node
-		rno = runic_alloc_node(rn);
+    } else { // is node
+    	rno = runic_alloc_node(rn);
+  	    if (!__runic_obj_node_cpy(*r, *rn, ro.offset)) {
+  	         ret.base = NULL;
+  	         ret.offset = (uint64_t)NULL;
+   	         return ret.offset;
+   	    }
+    }
 	// if the alloc fails in some way
 	if (rno.base == NULL || rno.offset < DEFAULT_ROOT) {
 		ret.base = NULL;
@@ -201,34 +217,37 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 }
 
 int __runic_doscan(runic_t* r, runic_t* rn) {
-	int freed = 0;
-	uint64_t offset;
+	int freed = -1;
+	uint64_t offset, free;
 	runic_obj_ty_t type;
 	runic_obj_t ro = runic_root(*r);
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT)
 		return freed;
 	if ((offset = __runic_move(r, rn, ro)) < DEFAULT_ROOT)
 		return freed;
+    else
+        runic_set_root(rn, ro);
 	do {
 		if (ro.base != NULL && ro.offset >= DEFAULT_ROOT) {
+            ro.offset = offset;
+            ro.base = rn->base;
 			// keep doing the thing as long as the above is true
 			type = runic_obj_ty(ro);
-			if (type == NODE) {
-				ro.offset = offset;
-				ro.base = rn->base;
+            if (type == NODE) {
 				if (!__runic_move_children(r, rn, ro))
-					/* do something drastic!!!! */ ;
+					exit(1);
 				offset += sizeof(runic_obj_node_t);
 			} else {
 				ro.offset = offset;
 				ro.base = rn->base;
 				offset += sizeof(uint8_t) + runic_atom_size(ro);
 			}
+            free = runic_free(*rn);
 		}
 		else
-			/* do something drastic!!!! */ ;
-	} while (offset < runic_free(*rn));
-	if (runic_set_root(rn, ro))
+			exit(1);
+	} while (offset < free);
+	if (runic_root(*rn).base != NULL)
 		return (runic_free(*rn) - runic_free(*r));
 	return freed;
 }
@@ -247,12 +266,12 @@ bool __calc_remaing_space(runic_t r) {
 
 int __runic_compact(runic_t* r) {
     runic_file_t* file_ref;
-	int open_flags, share_flags, prot_flags, map_mode, out;
+	int open_flags, share_flags, prot_flags, map_mode, output;
 	runic_t rn;
     rn.base = NULL;
 	rn.path = "/tmp/tmp2.runic";
 	rn.mode = CREATEWRITE;
-	open_flags = O_RDWR; // append to this file in read-write
+	open_flags =  O_RDWR | O_CREAT; // create this file in read-write
 	share_flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	prot_flags = PROT_READ | PROT_WRITE;
 	map_mode = MAP_SHARED;
@@ -274,7 +293,8 @@ int __runic_compact(runic_t* r) {
     memcpy((char*)rn.base, "RUNIC", HEADER_SIZE); // insert magic number and return
     file_ref->root = (uint64_t)NULL; // set first node
     file_ref->free = DEFAULT_ROOT; // start of free
-	if ((out = __runic_doscan(r, &rn)) <= 0)
+    output = __runic_doscan(r, &rn);
+    if (output < 0)
 		return 0;
 	runic_close(*r);
 	if (remove(r->path) == OP_FAIL_CODE) // remove old file
@@ -283,7 +303,7 @@ int __runic_compact(runic_t* r) {
 		return 0;
 	rn.path = r->path; // path should now properly reflect the path
 	runic_close(rn);
-	return out;
+	return output;
 }
 
 bool __expand_file(runic_t* r) {

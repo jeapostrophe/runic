@@ -228,14 +228,13 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 		obj_ref->right = (uint64_t)NULL;
 		return ro;
 	} else {
-		if ((out = __runic_compact(r)) != 0) {
+        out = __runic_compact(r);
+		if (out < (sizeof(runic_obj_node_t)) && r->mode != READONLY) {
 			(*r) = runic_open(r->path, r->mode);
-			if (out < sizeof(runic_obj_node_t) && r->mode != READONLY) {
-				if (!__expand_file(r)) {
-					ro.base = NULL;
-					ro.offset = (uint64_t)NULL;
-					return ro;
-				}
+			if (!__expand_file(r)) {
+				ro.base = NULL;
+				ro.offset = (uint64_t)NULL;
+				return ro;
 			}
 		}
 		return ro = runic_alloc_node(r);
@@ -253,7 +252,6 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 		return ro;
 	}
 	if (sz < sizeof(uint64_t)) { // less than 8 bytes?? (ptr sz)
-		asz = sz;
 		tsz = sizeof(uint64_t); // true size
 	} // make it 8 bytes
 	if (__calc_remaing_space_atom(*r, sz)) {
@@ -266,11 +264,12 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 	} else {
         out = __runic_compact(r);
         if (out < (tsz + sizeof(uint8_t)) && r->mode != READONLY) {
-            if (!__expand_file(r)) {
-                ro.base = NULL;
-                ro.offset = (uint64_t)NULL;
-                return ro;
-            }
+            (*r) = runic_open(r->path, r->mode);
+			if (!__expand_file(r)) {
+				ro.base = NULL;
+				ro.offset = (uint64_t)NULL;
+				return ro;
+			}
         }
 		return ro = runic_alloc_atom(r, tsz);
 	}

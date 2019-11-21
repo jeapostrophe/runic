@@ -5,7 +5,7 @@ TARGET ?= a.out
 SRC_DIRS ?= .
 INC_DIRS ?= .
 
-SRCS := $(shell find $(SRC_DIRS) -name '*.cpp' -or -name '*.c')
+SRCS := $(shell find $(SRC_DIRS) -name '*.cpp' -or -name '*.c' -maxdepth 2)
 OBJS := $(addsuffix .o,$(basename $(SRCS)))
 DEPS := $(OBJS:.o=.d)
 
