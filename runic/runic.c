@@ -200,7 +200,7 @@ bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
 runic_t runic_shrink(runic_t* r) {
 	off_t val;
 	if (__runic_compact(r) < 0)
-		;
+		/* do something */;
 	(*r) = runic_open(r->path, r->mode);
 	val = runic_free(*r);
 	runic_close(*r);

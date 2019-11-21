@@ -195,23 +195,34 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 	// get the children
 	rl = __runic_lookback_left(r, rn, ro);
 	rr = __runic_lookback_right(r, rn, ro);
-	if (rl.base == NULL || rr.base == NULL || rl.offset < DEFAULT_ROOT || rr.offset < DEFAULT_ROOT)
+	
+	if (rl.base != NULL && rl.offset > DEFAULT_ROOT) {
+		if ((off1 = __runic_move(r, rn, rl)) > DEFAULT_ROOT) {
+			rl.offset = off1;
+			rl.base = rn->base;
+			if (!runic_node_set_left(&ro, rl)) {
+				return false;
+			}
+			if (rr.base != NULL && rr.offset > DEFAULT_ROOT) {
+				if ((off2 = __runic_move(r, rn, rr)) > DEFAULT_ROOT) {
+					rr.offset = off2;
+					rr.base = rn->base;
+					if (!runic_node_set_right(&ro, rr)) {
+						return false;
+					}
+				} else {
+					return false;
+				}
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	} else {
 		return false;
+	}
 
-	// move the children
-	if ((off1 = __runic_move(r, rn, rl)) < DEFAULT_ROOT ||
-		(off2 = __runic_move(r, rn, rr)) < DEFAULT_ROOT)
-		return false;
-
-	// fix the pointers for the parent
-	rl.offset = off1;
-	rr.offset = off2;
-	rl.base = rn->base;
-	rr.base = rn->base;
-	if (!runic_node_set_left(&ro, rl) ||
-		!runic_node_set_right(&ro, rr))
-		return false;
-		
 	// return a success!~
 	return true;
 }
@@ -234,8 +245,7 @@ int __runic_doscan(runic_t* r, runic_t* rn) {
 			// keep doing the thing as long as the above is true
 			type = runic_obj_ty(ro);
             if (type == NODE) {
-				if (!__runic_move_children(r, rn, ro))
-					exit(1);
+				__runic_move_children(r, rn, ro);
 				offset += sizeof(runic_obj_node_t);
 			} else {
 				ro.offset = offset;
@@ -278,8 +288,8 @@ int __runic_compact(runic_t* r) {
 	if ((rn.fd = open(rn.path, open_flags, share_flags)) == OP_FAIL_CODE) { // reopen
 		return 0;
 	}
-	write(rn.fd, "\0", runic_free(*r)); // new files are 0 sized, so write to file with space equal runic free
-	if ((rn.base = mmap(NULL, runic_free(*r), // mmap file with new, proper size
+	write(rn.fd, "\0", r->sb.st_size); // new files are 0 sized, so write to file with space equal runic free
+	if ((rn.base = mmap(NULL, r->sb.st_size, // mmap file with new, proper size
 		prot_flags, map_mode, rn.fd, 0)) == MAP_FAILED) 
 	{
 		close(rn.fd);
