@@ -74,11 +74,11 @@ bool __runic_open_on_args(runic_t* r, const char* path, int open_flags,
 		close(r->fd);
 		return stat;
 	}
-	if ((open_flags & O_CREAT) || (r->sb.st_size < sysconf(_SC_PAGESIZE))) { // generates file space
+	if ((open_flags & O_CREAT) && (r->sb.st_size < sysconf(_SC_PAGESIZE))) { // generates file space
 		runic_close(*r); // close mmap and file
 		if ((r->fd = open(path, open_flags, share_flags)) == OP_FAIL_CODE) // reopen
 			return stat;
-		write(r->fd, "\0", sysconf(_SC_PAGESIZE)); // write into file (4K)
+		truncate(r->path, sysconf(_SC_PAGESIZE)); // write into file (4K)
 		if ((r->base = mmap(NULL, sysconf(_SC_PAGESIZE), // mmap file (4K)
 			prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) {
 			close(r->fd);
@@ -93,6 +93,7 @@ bool __runic_open_on_args(runic_t* r, const char* path, int open_flags,
 		file_ref->root = (uint64_t)NULL; // set first node
 		file_ref->free = DEFAULT_ROOT; // start of free
 	} else {
+		file_ref = (runic_file_t*)r->base;
 		if (memcmp((char*)r->base, "RUNIC", HEADER_SIZE) != 0) {
 			runic_close(*r);
 			return stat;
@@ -203,24 +204,20 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 			if (!runic_node_set_left(&ro, rl)) {
 				return false;
 			}
-			if (rr.base != NULL && rr.offset > DEFAULT_ROOT) {
-				if ((off2 = __runic_move(r, rn, rr)) > DEFAULT_ROOT) {
-					rr.offset = off2;
-					rr.base = rn->base;
-					if (!runic_node_set_right(&ro, rr)) {
-						return false;
-					}
-				} else {
-					return false;
-				}
-			} else {
+		} else {
+			return false;
+		}
+	}
+	if (rr.base != NULL && rr.offset > DEFAULT_ROOT) {
+		if ((off2 = __runic_move(r, rn, rr)) > DEFAULT_ROOT) {
+			rr.offset = off2;
+			rr.base = rn->base;
+			if (!runic_node_set_right(&ro, rr)) {
 				return false;
 			}
 		} else {
 			return false;
 		}
-	} else {
-		return false;
 	}
 
 	// return a success!~
@@ -236,8 +233,11 @@ int __runic_doscan(runic_t* r, runic_t* rn) {
 		return freed;
 	if ((offset = __runic_move(r, rn, ro)) < DEFAULT_ROOT)
 		return freed;
-    else
+    else {
+        ro.offset = offset;
+        ro.base = rn->base;
         runic_set_root(rn, ro);
+	}
 	do {
 		if (ro.base != NULL && ro.offset >= DEFAULT_ROOT) {
             ro.offset = offset;
@@ -257,8 +257,10 @@ int __runic_doscan(runic_t* r, runic_t* rn) {
 		else
 			exit(1);
 	} while (offset < free);
-	if (runic_root(*rn).base != NULL)
-		return (runic_free(*rn) - runic_free(*r));
+	if (runic_root(*rn).base != NULL) {
+		freed = runic_free(*r) - (runic_free(*rn));
+		return freed;
+	}
 	return freed;
 }
 
@@ -288,7 +290,7 @@ int __runic_compact(runic_t* r) {
 	if ((rn.fd = open(rn.path, open_flags, share_flags)) == OP_FAIL_CODE) { // reopen
 		return 0;
 	}
-	write(rn.fd, "\0", r->sb.st_size); // new files are 0 sized, so write to file with space equal runic free
+	truncate(rn.path, r->sb.st_size); // new files are 0 sized, so write to file with space equal runic free
 	if ((rn.base = mmap(NULL, r->sb.st_size, // mmap file with new, proper size
 		prot_flags, map_mode, rn.fd, 0)) == MAP_FAILED) 
 	{
@@ -305,12 +307,13 @@ int __runic_compact(runic_t* r) {
     file_ref->free = DEFAULT_ROOT; // start of free
     output = __runic_doscan(r, &rn);
     if (output < 0)
-		return 0;
+		return -1;
 	runic_close(*r);
 	if (remove(r->path) == OP_FAIL_CODE) // remove old file
 		return 0;
 	if (rename(rn.path, r->path) == OP_FAIL_CODE) // rename and replace new file into old path
 		return 0;
+	rn.mode = r->mode;
 	rn.path = r->path; // path should now properly reflect the path
 	runic_close(rn);
 	return output;
@@ -328,7 +331,7 @@ bool __expand_file(runic_t* r) {
 	if ((r->fd = open(r->path, open_flags, share_flags)) == -1) { // reopen
 		return stat;
 	}
-	write(r->fd, "\0", r->sb.st_size); // write into file its current size (this will double capacity)
+	truncate(r->path, r->sb.st_size * 2); // write into file its current size (this will double capacity)
 	if ((r->base = mmap(NULL, r->sb.st_size * 2, // mmap file with new, doubled size
 		prot_flags, map_mode, r->fd, 0)) == MAP_FAILED) 
 	{

@@ -26,6 +26,8 @@
 runic_t runic_open(const char* path, int mode) {
 	runic_t r, r_null;
 	r_null.base = NULL;
+	r.path = path;
+	r.mode = mode;
 	switch (mode) {
 	case READONLY:
 		if (!__runic_open_on_args(&r, path, O_RDONLY,
@@ -47,8 +49,6 @@ runic_t runic_open(const char* path, int mode) {
 		}
 		break;
 	}
-	r.path = path;
-	r.mode = mode;
 	return r;
 }
 
@@ -91,6 +91,7 @@ uint64_t runic_free(runic_t r) {
 
 uint64_t runic_remaining(runic_t r, bool silent){
 	runic_file_t* file_ref = (runic_file_t*)r.base;
+	fstat(r.fd, &r.sb);
 	int64_t bytes_remain = (r.sb.st_size - file_ref->free);
 	double percentage_used = ((double)(file_ref->free))/r.sb.st_size;
 	if (r.base == NULL) {
@@ -98,7 +99,7 @@ uint64_t runic_remaining(runic_t r, bool silent){
 	}
 	if(!silent) {
 		printf("This file has %lld total bytes, with %lld bytes free.\n", r.sb.st_size, bytes_remain);
-		printf("Totaling %.2F %c used.", percentage_used, (37)); // max file size by stat is 8k PiB, 37 is % symbol
+		printf("Totaling %.2F %c used.\n", percentage_used, (37)); // max file size by stat is 8k PiB, 37 is % symbol
 	}
 	return bytes_remain;
 }
@@ -200,7 +201,7 @@ bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
 runic_t runic_shrink(runic_t* r) {
 	off_t val;
 	if (__runic_compact(r) < 0)
-		/* do something */;
+		exit(1);
 	(*r) = runic_open(r->path, r->mode);
 	val = runic_free(*r);
 	runic_close(*r);
@@ -229,6 +230,8 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 		return ro;
 	} else {
         out = __runic_compact(r);
+		if (out < 0)
+			exit(1);
 		if (out < (sizeof(runic_obj_node_t)) && r->mode != READONLY) {
 			(*r) = runic_open(r->path, r->mode);
 			if (!__expand_file(r)) {
@@ -263,6 +266,8 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 		return ro;
 	} else {
         out = __runic_compact(r);
+		if (out < 0)
+			exit(1);
         if (out < (tsz + sizeof(uint8_t)) && r->mode != READONLY) {
             (*r) = runic_open(r->path, r->mode);
 			if (!__expand_file(r)) {

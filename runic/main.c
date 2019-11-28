@@ -11,5 +11,6 @@ int main(int argc, char* argv[])
 		runic_set_root(&r, ro);
 		runic_shrink(&r);
 	}
+	runic_remaining(r, false);
 	return 0;
 }
