@@ -171,6 +171,11 @@ size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 		return (uint64_t)NULL;
 	}
 	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	if (obj_ref->tag == 8) {
+		if (strlen(&(obj_ref->value)) > 0) {
+			return strlen(&(obj_ref->value));
+		}
+	}
 	return obj_ref->tag;
 }
 
@@ -245,7 +250,7 @@ runic_obj_t runic_alloc_node(runic_t* r) {
 }
 
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
-	size_t out, asz = sz, tsz = sz;
+	size_t out, tsz = sz;
 	runic_obj_t ro;
 	runic_file_t* file_ref = (runic_file_t*)r->base;
 	runic_obj_atom_t* obj_ref;
@@ -262,7 +267,7 @@ runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
 		ro.offset = file_ref->free;
 		file_ref->free += (tsz + sizeof(uint8_t));
 		obj_ref = (runic_obj_atom_t*)(r->base + ro.offset);
-		obj_ref->tag = asz; // accessable size
+		obj_ref->tag = tsz; // accessable size
 		return ro;
 	} else {
         out = __runic_compact(r);
@@ -323,7 +328,7 @@ bool runic_atom_write(runic_obj_t* ro, const char* val) {
 	}
 	obj_ref = (runic_obj_atom_t*)(ro->base + ro->offset);
 	sz = runic_atom_size(*ro);
-	if (sz <= strlen(val)) {
+	if (sz >= strlen(val)) {
 		memcpy(&obj_ref->value, val, sz);
 		return stat = true;
 	} else {

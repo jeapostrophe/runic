@@ -225,7 +225,7 @@ bool __runic_move_children(runic_t* r, runic_t* rn, runic_obj_t ro) {
 }
 
 int __runic_doscan(runic_t* r, runic_t* rn) {
-	int freed = -1;
+	int sz, freed = -1;
 	uint64_t offset, free;
 	runic_obj_ty_t type;
 	runic_obj_t ro = runic_root(*r);
@@ -250,7 +250,12 @@ int __runic_doscan(runic_t* r, runic_t* rn) {
 			} else {
 				ro.offset = offset;
 				ro.base = rn->base;
-				offset += sizeof(uint8_t) + runic_atom_size(ro);
+				if (runic_atom_size(ro) < sizeof(uint64_t)) {
+					sz = sizeof(uint64_t);
+				} else {
+					sz = runic_atom_size(ro);
+				}
+				offset += sizeof(uint8_t) + sz;
 			}
             free = runic_free(*rn);
 		}
