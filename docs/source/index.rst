@@ -32,7 +32,9 @@ The following Documentation covers the runic API and it’s uses – This includ
    runic_close
    runic_root
    runic_free
+   runic_remaining
    runic_set_root
+   runic_shrink
    runic_alloc_node
    runic_alloc_atom
    runic_alloc_atom_str

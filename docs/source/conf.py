@@ -22,7 +22,7 @@ copyright = '2019, Jay McCarthy'
 author = 'Stephen Hecht, Jay McCarthy'
 
 # The full version, including alpha/beta/rc tags
-release = '0.5.0.1000'
+release = '1.5.0.2000'
 
 
 # -- General configuration ---------------------------------------------------

@@ -82,7 +82,7 @@
 	// mutators
 	//// file
 	bool runic_set_root(runic_t* r, runic_obj_t ro);
-	bool runic_shrink(runic_t* r);
+	runic_t runic_shrink(runic_t* r);
 	runic_obj_t runic_alloc_node(runic_t* r);
 	runic_obj_t runic_alloc_atom(runic_t* r, size_t sz);
 	runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value);
