@@ -1,0 +1,12 @@
+cd ~/Documents/GitHub/runic/test;
+rm /tmp/tmp2.runic;
+rm db.runic;
+for ((n=0;n<$1;n++));
+do ./wordlist1.e db.runic insert $2;
+done;
+cd ..;
+make clean;
+make;
+cd test/;
+cp ../wordlist/v1/wordlist1.e wordlist1.e;
+cp ../runic/runic.e runic.e;

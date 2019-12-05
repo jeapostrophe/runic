@@ -167,16 +167,18 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 //// atom
 size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 	runic_obj_atom_t* obj_ref;
+	int sz;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		return (uint64_t)NULL;
 	}
 	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
-	if (obj_ref->tag == 8) {
-		if (strlen(&(obj_ref->value)) > 0) {
-			return strlen(&(obj_ref->value));
+	sz = obj_ref->tag;
+	if (sz == 8) {
+		if ((sz = strlen(&(obj_ref->value))) > 0) {
+			return sz;
 		}
 	}
-	return obj_ref->tag;
+	return sz;
 }
 
 bool runic_atom_read(runic_obj_t ro, char* c) { // returns atom value
