@@ -1,9 +1,10 @@
-#temp files from editor
+#temp files from editors
 *~
 \#*
 .\#*
 #macOS artifacts
 .DS_Store
+#notes
 .notes
 #vscode artifacts
 /.vscode/*
@@ -11,6 +12,7 @@
 *.o
 #executables
 *.e
+#dependencies
 *.d
 #doc html
 /docs/build/*

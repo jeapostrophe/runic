@@ -7,16 +7,6 @@
 ****/
 
 // dependencies
-#include <stdio.h> // perror, rename, remove
-#include <stdlib.h> // exit
-#include <stdbool.h> // bool
-#include <stddef.h> // size_t
-#include <stdint.h> // uintXX_t
-#include <string.h> // memcmp, memcpy, strlen
-#include <fcntl.h> // open flags
-#include <unistd.h> // close, sysconf
-#include <sys/stat.h> // struct stat, open, fstat
-#include <sys/mman.h> // mmap, munmap, map flags
 #include "runic.h"
 #include "runic_hidden.h" // hidden functions
 // additional dependencies can be found in runic.h
