@@ -13,57 +13,62 @@
 
 // accessors
 //// file
-runic_t runic_open(const char* path, int mode) {
-	runic_t r, r_null;
-	r_null.base = NULL;
+
+///Opens the file using a known path string and a designated file mode
+///path: A known file path
+///mode: A value from the runic_file_modes enum
+runic_t runic_open(const char* path, runic_file_modes_t mode) {
+	runic_t r, r_NULL;
+	r_NULL.base = NULL;
 	r.path = path;
 	r.mode = mode;
 	switch (mode) {
-	case READONLY:
-		if (!__runic_open_on_args(&r, path, O_RDONLY,
-			S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE)) {
-			return r_null;
-		}
-		break;
-	case READWRITE:
-		if (!__runic_open_on_args(&r, path, O_RDWR,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
-			return r_null;
-		}
-		break;
-	case CREATEWRITE:
-	default:
-		if (!__runic_open_on_args(&r, path, O_RDWR | O_CREAT,
-			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
-			return r_null;
-		}
-		break;
+		case READONLY:
+			if (!__runic_open_on_args(&r, path, O_RDONLY,
+				S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE)) {
+				return r_NULL;
+			}
+			break;
+		case READWRITE:
+			if (!__runic_open_on_args(&r, path, O_RDWR,
+				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+				return r_NULL;
+			}
+			break;
+		case CREATEWRITE:
+		default:
+			if (!__runic_open_on_args(&r, path, O_RDWR | O_CREAT,
+				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+				return r_NULL;
+			}
+			break;
 	}
 	return r;
 }
 
+///Closes a runic file associated with the runic_t
+///r: An open runic_t file
 bool runic_close(runic_t r) {
-	bool stat = false;
 	if (r.base == NULL) {
-		return stat;
+		return false;
 	}
-	munmap(r.base, r.sb.st_size);
-	close(r.fd);
-	return stat = true;
+
+	if (munmap(r.base, r.sb.st_size) == 0 && close(r.fd) == 0)
+	{
+		return true;
+	}
+
+	// if the function fails to properly unmap or close the file, the program must exit.
+	exit(1);
 }
 
 runic_obj_t runic_root(runic_t r) {
-	runic_obj_t ro;
 	runic_file_t* file_ref = (runic_file_t*)r.base;
-	if (r.base == NULL) {
-		ro.base = NULL;
-		ro.offset = (uint64_t)NULL;
-		return ro;
-	}
-	if (file_ref->root == (uint64_t)NULL) {
-		ro.base = NULL;
-		ro.offset = (uint64_t)NULL;
-		return ro;
+	runic_obj_t ro, ro_NULL;
+	if (r.base == NULL || file_ref->root == (uint64_t)NULL) {
+		ro_NULL.base = NULL;
+		ro_NULL.offset = (uint64_t)NULL;
+		return ro_NULL;
 	} else {
 		ro.offset = file_ref->root;
 		ro.base = r.base;
@@ -75,18 +80,21 @@ uint64_t runic_free(runic_t r) {
 	runic_file_t* file_ref = (runic_file_t*)r.base;
 	if (r.base == NULL) {
 		return 0;
-	} else
+	} else {
 		return file_ref->free;
+	}
 }
 
 uint64_t runic_remaining(runic_t r, bool silent){
 	runic_file_t* file_ref = (runic_file_t*)r.base;
-	fstat(r.fd, &r.sb);
-	int64_t bytes_remain = (r.sb.st_size - file_ref->free);
-	double percentage_used = ((double)(file_ref->free))/r.sb.st_size;
-	if (r.base == NULL) {
+	int64_t bytes_remain;
+	double percentage_used;
+	if (r.base == NULL || fstat(r.fd, &r.sb) == OP_FAIL_CODE) {
 		return 0;
 	}
+
+	bytes_remain = (r.sb.st_size - file_ref->free);
+	percentage_used = ((double)(file_ref->free))/r.sb.st_size;
 	if(!silent) {
 		printf("This file has %lld total bytes, with %lld bytes free.\n", r.sb.st_size, bytes_remain);
 		printf("Totaling %.2F %c used.\n", percentage_used, (37)); // max file size by stat is 8k PiB, 37 is % symbol
@@ -96,15 +104,12 @@ uint64_t runic_remaining(runic_t r, bool silent){
 
 //// node
 runic_obj_ty_t runic_obj_ty(runic_obj_t ro) {
-	runic_obj_fwdptr_t* fptr_ref;
-	runic_obj_atom_t* atom_ref;
-	runic_obj_node_t* node_ref;
+	runic_obj_fwdptr_t* fptr_ref = (runic_obj_fwdptr_t*)(ro.base + ro.offset);
+	runic_obj_atom_t* atom_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	runic_obj_node_t* node_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		return OP_FAIL_CODE;
 	}
-	fptr_ref = (runic_obj_fwdptr_t*)(ro.base + ro.offset);
-	atom_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
-	node_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	if (fptr_ref->tag == FPTR_TAG_VALUE) {
 		return FWD_PTR;
 	}
@@ -114,21 +119,24 @@ runic_obj_ty_t runic_obj_ty(runic_obj_t ro) {
 	if (!(node_ref->tag)) {
 		return NODE;
 	}
-	perror("Operation critically failed, exiting...\n");
+
+	// if none of the if statements return, the program must exit
 	exit(1);
 }
 
 runic_obj_t runic_node_left(runic_obj_t ro) {
+	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	runic_obj_t ret;
-	runic_obj_node_t* obj_ref;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
 		return ret;
+	} else {
+		ret.offset = obj_ref->left;
+		ret.base = ro.base;
 	}
-	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
-	ret.offset = obj_ref->left;
-	ret.base = ro.base;
+	
+	// assign over if failed
 	if (obj_ref->left == (uint64_t)NULL) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
@@ -137,16 +145,17 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 }
 
 runic_obj_t runic_node_right(runic_obj_t ro) {
+	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	runic_obj_t ret;
-	runic_obj_node_t* obj_ref;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
 		return ret;
+	} else {
+		ret.offset = obj_ref->right;
+		ret.base = ro.base;
 	}
-	obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
-	ret.offset = obj_ref->right;
-	ret.base = ro.base;
+	
 	if (obj_ref->right == (uint64_t)NULL) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
@@ -156,174 +165,117 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 
 //// atom
 size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
-	runic_obj_atom_t* obj_ref;
-	int sz;
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	int sz = obj_ref->tag;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		return (uint64_t)NULL;
 	}
-	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
-	sz = obj_ref->tag;
-	if (sz == 8) {
-		if ((sz = strlen(&(obj_ref->value))) > 0) {
-			return sz;
+
+	// atoms store a minimum of 8 bytes so they can be used in other operations
+	// for values less than 8, a strlen is used to get the actual size
+	if (sz <= 8) {
+		sz = strlen(&(obj_ref->value));
+		if (sz < 0) {
+			// this should never execute
+			// c standard does not have an error code for strlen
+			return OP_FAIL_CODE;
 		}
 	}
 	return sz;
 }
 
 bool runic_atom_read(runic_obj_t ro, char* c) { // returns atom value
-	bool stat = false;
 	size_t sz = runic_atom_size(ro);
-	runic_obj_atom_t* obj_ref;
-	if (ro.base == NULL || ro.offset < DEFAULT_ROOT || c == NULL) {
-		return stat;
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
+	if (c == NULL || ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		return false;
+	} else if (memcpy(c, &obj_ref->value, sz) != NULL) {
+		return true; 
+	} else {
+		// this should never execute
+		// c standard does not have an error code for memcpy
+		return false;
 	}
-	obj_ref = (runic_obj_atom_t*)(ro.base + ro.offset);
-	memcpy(c, &obj_ref->value, sz);
-	return stat = true;
 }
 
 // mutators
 //// file
 bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
-	bool stat = false;
 	runic_file_t* file_ref = (runic_file_t*)r->base;
 	if (r->base == NULL || ro.base == NULL || ro.offset < DEFAULT_ROOT) {
-		return stat;
+		return false;
+	} else {
+		file_ref->root = ro.offset;
+		return true;
 	}
-	file_ref->root = ro.offset;
-	return stat = true;
+	
 }
 
 runic_t runic_shrink(runic_t* r) {
-	off_t val;
-	if (__runic_compact(r) < 0)
-		exit(1);
-	(*r) = runic_open(r->path, r->mode);
-	val = runic_free(*r);
-	runic_close(*r);
-	truncate(r->path, val+1);
-	return runic_open(r->path, r->mode);
+
 }
 
 runic_obj_t runic_alloc_node(runic_t* r) {
-	int out;
-	runic_obj_t ro;
-	runic_file_t* file_ref = (runic_file_t*)r->base;
-	runic_obj_node_t* obj_ref;
-	if (r->base == NULL) {
-		ro.base = NULL;
-		ro.offset = (uint64_t)NULL;
-		return ro;
-	}
-	if (__calc_remaing_space(*r)) {
-		ro.base = r->base;
-		ro.offset = file_ref->free;
-		file_ref->free += sizeof(runic_obj_node_t);
-		obj_ref = (runic_obj_node_t*)(r->base + ro.offset);
-		obj_ref->tag = NODE_TAG_VALUE;
-		obj_ref->left = (uint64_t)NULL;
-		obj_ref->right = (uint64_t)NULL;
-		return ro;
-	} else {
-        out = __runic_compact(r);
-		if (out < 0)
-			exit(1);
-		if (out < (sizeof(runic_obj_node_t)) && r->mode != READONLY) {
-			(*r) = runic_open(r->path, r->mode);
-			if (!__expand_file(r)) {
-				ro.base = NULL;
-				ro.offset = (uint64_t)NULL;
-				return ro;
-			}
-		}
-		return ro = runic_alloc_node(r);
-	}
+
 }
 
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
-	size_t out, tsz = sz;
-	runic_obj_t ro;
-	runic_file_t* file_ref = (runic_file_t*)r->base;
-	runic_obj_atom_t* obj_ref;
-	if (r->base == NULL || sz < 0 || sz > MAX_ATOM_SIZE) { // 255 reserved for fptr
-		ro.base = NULL;
-		ro.offset = (uint64_t)NULL;
-		return ro;
-	}
-	if (sz < sizeof(uint64_t)) { // less than 8 bytes?? (ptr sz)
-		tsz = sizeof(uint64_t); // true size
-	} // make it 8 bytes
-	if (__calc_remaing_space_atom(*r, sz)) {
-		ro.base = r->base;
-		ro.offset = file_ref->free;
-		file_ref->free += (tsz + sizeof(uint8_t));
-		obj_ref = (runic_obj_atom_t*)(r->base + ro.offset);
-		obj_ref->tag = tsz; // accessable size
-		return ro;
-	} else {
-        out = __runic_compact(r);
-		if (out < 0)
-			exit(1);
-        if (out < (tsz + sizeof(uint8_t)) && r->mode != READONLY) {
-            (*r) = runic_open(r->path, r->mode);
-			if (!__expand_file(r)) {
-				ro.base = NULL;
-				ro.offset = (uint64_t)NULL;
-				return ro;
-			}
-        }
-		return ro = runic_alloc_atom(r, tsz);
-	}
+
 }
 
 runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
 	size_t sz;
-	runic_obj_t ro;
-	sz = strlen(value);
+	runic_obj_t ro, ro_NULL;
+	if ((sz = strlen(value)) < 0) {
+		// this should never execute
+		// c standard does not have an error code for strlen
+		ro_NULL.base = NULL;
+		ro_NULL.offset = (uint64_t)NULL;
+		return ro_NULL;
+	}
+	
 	ro = runic_alloc_atom(r, sz);
-	runic_atom_write(&ro, value);
+	if (!runic_atom_write(&ro, value)) {
+		ro_NULL.base = NULL;
+		ro_NULL.offset = (uint64_t)NULL;
+		return ro_NULL;
+	}
+	
 	return ro;
 }
 
 //// node
 bool runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
-	bool stat = false;
+	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
 	if (parent->base == NULL || parent->offset < DEFAULT_ROOT
 		|| child.base == NULL || child.offset < DEFAULT_ROOT)
 	{
-		return stat;
+		return false;
+	} else {
+		parent_ref->left = child.offset;
+		return true;
 	}
-	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
-	parent_ref->left = child.offset;
-	return stat = true;
+	
 }
 bool runic_node_set_right(runic_obj_t* parent, runic_obj_t child) {
-	bool stat = false;
+	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
 	if (parent->base == NULL || parent->offset < DEFAULT_ROOT
 		|| child.base == NULL || child.offset < DEFAULT_ROOT)
 	{
-		return stat;
+		return false;
+	} else {
+		parent_ref->right = child.offset;
+		return true;
 	}
-	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
-	parent_ref->right = child.offset;
-	return stat = true;
 }
 
 //// atom
 bool runic_atom_write(runic_obj_t* ro, const char* val) {
+	runic_obj_atom_t* obj_ref = (runic_obj_atom_t*)(ro->base + ro->offset);
 	size_t sz;
-	bool stat = false;
-	runic_obj_atom_t* obj_ref;
 	if (ro->base == NULL || ro->offset < DEFAULT_ROOT || val == NULL) {
-		return stat;
+		return false;
 	}
-	obj_ref = (runic_obj_atom_t*)(ro->base + ro->offset);
 	sz = runic_atom_size(*ro);
-	if (sz >= strlen(val)) {
-		memcpy(&obj_ref->value, val, sz);
-		return stat = true;
-	} else {
-		return stat;
-	}
+	return (sz >= strlen(val) && memcpy(&obj_ref->value, val, sz) != NULL);
 }

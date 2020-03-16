@@ -1,6 +1,6 @@
 TOPTARGETS := all clean
 
-SUBDIRS := docs runic test wordlist/v1 wordlist/v2
+SUBDIRS := runic test wordlist/v1 wordlist/v2
 
 $(TOPTARGETS): $(SUBDIRS)
 $(SUBDIRS):

@@ -30,9 +30,9 @@
 #define DEFAULT_ROOT 0x15
 
 // enums
-enum runic_file_modes {
+typedef enum runic_file_modes {
 	READONLY, READWRITE, CREATEWRITE
-};
+} runic_file_modes_t;
 
 typedef enum runic_obj_ty {
 	NODE, ATOM
@@ -54,7 +54,7 @@ typedef struct runic_obj {
       
 // accessors
 //// file
-runic_t runic_open(const char* path, int mode);
+runic_t runic_open(const char* path, runic_file_modes_t mode);
 bool runic_close(runic_t r);
 runic_obj_t runic_root(runic_t r);
 uint64_t runic_free(runic_t r);
