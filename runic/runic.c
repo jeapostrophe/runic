@@ -24,21 +24,25 @@ runic_t runic_open(const char* path, runic_file_modes_t mode) {
 	r.mode = mode;
 	switch (mode) {
 		case READONLY:
-			if (!__runic_open_on_args(&r, path, O_RDONLY,
+			if (!__runic_open_existing(&r, path, O_RDONLY,
 				S_IRUSR | S_IRGRP | S_IROTH, PROT_READ, MAP_PRIVATE)) {
+					// R--R--R-- (444)
 				return r_NULL;
 			}
 			break;
 		case READWRITE:
-			if (!__runic_open_on_args(&r, path, O_RDWR,
+			if (!__runic_open_existing(&r, path, O_RDWR,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+					// RW-R--R-- (644)
 				return r_NULL;
 			}
 			break;
 		case CREATEWRITE:
 		default:
-			if (!__runic_open_on_args(&r, path, O_RDWR | O_CREAT,
+			// this case WILL destroy any existing data at this filepath!!!
+			if (!__runic_open_new(&r, path, O_RDWR | O_CREAT | O_TRUNC,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, PROT_READ | PROT_WRITE, MAP_SHARED)) {
+					// RW-R--R-- (644)
 				return r_NULL;
 			}
 			break;
@@ -53,7 +57,8 @@ bool runic_close(runic_t r) {
 		return false;
 	}
 
-	if (munmap(r.base, r.sb.st_size) == 0 && close(r.fd) == 0)
+	if (munmap(r.base, r.sb.st_size) == 0
+		&& close(r.fd) == 0)
 	{
 		return true;
 	}
@@ -69,7 +74,7 @@ runic_obj_t runic_root(runic_t r) {
 		ro_NULL.base = NULL;
 		ro_NULL.offset = (uint64_t)NULL;
 		return ro_NULL;
-	} else {
+	} else {  // file seems legit
 		ro.offset = file_ref->root;
 		ro.base = r.base;
 		return ro;
@@ -90,6 +95,7 @@ uint64_t runic_remaining(runic_t r, bool silent){
 	int64_t bytes_remain;
 	double percentage_used;
 	if (r.base == NULL || fstat(r.fd, &r.sb) == OP_FAIL_CODE) {
+		// bad object
 		return 0;
 	}
 
@@ -131,12 +137,12 @@ runic_obj_t runic_node_left(runic_obj_t ro) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
 		return ret;
-	} else {
+	} else { // object is a valid object
 		ret.offset = obj_ref->left;
 		ret.base = ro.base;
 	}
 	
-	// assign over if failed
+	// assign over if failed (nothing at this memory location)
 	if (obj_ref->left == (uint64_t)NULL) {
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
@@ -148,6 +154,7 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 	runic_obj_node_t* obj_ref = (runic_obj_node_t*)(ro.base + ro.offset);
 	runic_obj_t ret;
 	if (ro.base == NULL || ro.offset < DEFAULT_ROOT) {
+		// bad input
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
 		return ret;
@@ -157,6 +164,7 @@ runic_obj_t runic_node_right(runic_obj_t ro) {
 	}
 	
 	if (obj_ref->right == (uint64_t)NULL) {
+		// nothing at this memory location
 		ret.base = NULL;
 		ret.offset = (uint64_t)NULL;
 	}
@@ -178,6 +186,7 @@ size_t runic_atom_size(runic_obj_t ro) { // returns the size of atom
 		if (sz < 0) {
 			// this should never execute
 			// c standard does not have an error code for strlen
+			// but we should test for this anyway
 			return OP_FAIL_CODE;
 		}
 	}
@@ -194,6 +203,7 @@ bool runic_atom_read(runic_obj_t ro, char* c) { // returns atom value
 	} else {
 		// this should never execute
 		// c standard does not have an error code for memcpy
+		// but we should test for this anyway
 		return false;
 	}
 }
@@ -204,7 +214,7 @@ bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
 	runic_file_t* file_ref = (runic_file_t*)r->base;
 	if (r->base == NULL || ro.base == NULL || ro.offset < DEFAULT_ROOT) {
 		return false;
-	} else {
+	} else { // if the objects are real, write to disk. atomic operations cant fail
 		file_ref->root = ro.offset;
 		return true;
 	}
@@ -212,14 +222,20 @@ bool runic_set_root(runic_t* r, runic_obj_t ro) { // returns false on failure
 }
 
 runic_t runic_shrink(runic_t* r) {
-
+	r->base = NULL;
+	return *r;
 }
 
 runic_obj_t runic_alloc_node(runic_t* r) {
-
+	runic_obj_t ro;
+	ro.base = NULL;
+	return ro;
 }
 
 runic_obj_t runic_alloc_atom(runic_t* r, size_t sz) {
+	runic_obj_t ro;
+	ro.base = NULL;
+	return ro;
 
 }
 
@@ -229,6 +245,7 @@ runic_obj_t runic_alloc_atom_str(runic_t* r, const char* value) {
 	if ((sz = strlen(value)) < 0) {
 		// this should never execute
 		// c standard does not have an error code for strlen
+		// but we should test for it anyway
 		ro_NULL.base = NULL;
 		ro_NULL.offset = (uint64_t)NULL;
 		return ro_NULL;
@@ -249,7 +266,7 @@ bool runic_node_set_left(runic_obj_t* parent, runic_obj_t child) {
 	runic_obj_node_t* parent_ref = (runic_obj_node_t*)(parent->base + parent->offset);
 	if (parent->base == NULL || parent->offset < DEFAULT_ROOT
 		|| child.base == NULL || child.offset < DEFAULT_ROOT)
-	{
+	{   // both objects need to be real to write to disk
 		return false;
 	} else {
 		parent_ref->left = child.offset;
@@ -278,4 +295,5 @@ bool runic_atom_write(runic_obj_t* ro, const char* val) {
 	}
 	sz = runic_atom_size(*ro);
 	return (sz >= strlen(val) && memcpy(&obj_ref->value, val, sz) != NULL);
+	// should return a success if both operations succeed.
 }
